@@ -2391,7 +2391,32 @@ boot();
 // PWA
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js').catch(err=>console.warn('SW reg failed', err));
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      // 自动检测更新
+      reg.addEventListener('updatefound', ()=>{
+        const nw = reg.installing;
+        if(!nw) return;
+        nw.addEventListener('statechange', ()=>{
+          if(nw.state==='installed' && navigator.serviceWorker.controller){
+            // 有新版本可用
+            if(confirm('FitTrack 有新版本啦，立即刷新使用？')){
+              nw.postMessage('SKIP_WAITING');
+              window.location.reload();
+            }
+          }
+        });
+      });
+      // 每次页面打开主动检查一次
+      setTimeout(()=>reg.update(), 1500);
+    }).catch(err=>console.warn('SW reg failed', err));
+
+    // controllerchange 触发后强制刷新
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+      if(refreshing) return;
+      refreshing = true;
+      window.location.reload();
+    });
   });
 }
 </script>
