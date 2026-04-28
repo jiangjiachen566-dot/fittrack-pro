@@ -251,15 +251,18 @@
       <!-- 减脂计划主卡（环 = 计划进度） -->
       <div class="card mt-4 p-5 relative overflow-hidden">
         <div class="absolute -top-10 -right-10 w-40 h-40 rounded-full" style="background:radial-gradient(circle,rgba(255,122,69,.25),transparent 70%)"></div>
-        <div class="flex items-start justify-between relative">
+        <!-- 顶部状态行 -->
+        <div class="flex items-center gap-2 flex-wrap relative">
+          <span class="pill" style="background:rgba(255,122,69,.15); color:var(--primary)">
+            <i class="lucide lucide-flame" style="font-size:11px"></i>减脂中
+          </span>
+          <span id="status-pill" onclick="openSheet('user-status')" style="cursor:pointer"></span>
+        </div>
+        <p class="text-[12px] text-slate-300 mt-2 font-semibold relative" id="plan-name-line">--</p>
+
+        <div class="flex items-start justify-between mt-2 relative">
           <div>
-            <div class="flex items-center gap-2">
-              <span class="pill" style="background:rgba(255,122,69,.15); color:var(--primary)">
-                <i class="lucide lucide-flame" style="font-size:11px"></i>减脂中
-              </span>
-              <span class="text-[11px] text-slate-400" id="plan-name-pill">--</span>
-            </div>
-            <p class="mt-3 text-xs text-slate-400">计划进度</p>
+            <p class="mt-1 text-xs text-slate-400">计划进度</p>
             <div class="flex items-baseline gap-1 mt-1">
               <span class="number-xl text-4xl" id="plan-day-cur">1</span>
               <span class="text-sm text-slate-400">/ <span id="plan-day-total">--</span> 天</span>
@@ -607,7 +610,18 @@
         </div>
       </div>
 
-      <div class="mt-5 card p-4 row-action" onclick="openSheet('change-password')">
+      <div class="mt-5 card p-4 row-action" onclick="openSheet('user-status')">
+        <div class="flex items-center gap-3">
+          <div class="meal-icon" id="me-status-icon" style="background:rgba(34,211,167,.15); color:var(--accent)"><i class="lucide lucide-sparkles"></i></div>
+          <div class="flex-1">
+            <p class="text-xs font-bold">个人状态 · <span id="me-status-name">正常</span></p>
+            <p class="text-[10px] text-slate-400" id="me-status-desc">点此切换 旅游/生病/高强度等</p>
+          </div>
+          <i class="lucide lucide-chevron-right text-slate-500"></i>
+        </div>
+      </div>
+
+      <div class="mt-3 card p-4 row-action" onclick="openSheet('change-password')">
         <div class="flex items-center gap-3">
           <div class="meal-icon" style="background:rgba(91,157,255,.15); color:var(--blue)"><i class="lucide lucide-key-round"></i></div>
           <div class="flex-1">
@@ -666,8 +680,37 @@ let session = null;
 let profile = null;          // profiles 行
 let cache = {                // 内存缓存所有用户数据
   weights:[], food:[], exercise:[], water:[], sleep:[], mood:[],
-  customFoods:[], achievements:[], bodyMeasures:[], strength:[]
+  customFoods:[], achievements:[], bodyMeasures:[], strength:[], userStatus:[]
 };
+
+// ========== 用户状态定义 ==========
+const USER_STATUSES = {
+  normal:  { name:'正常',     icon:'sparkles',     color:'#22D3A7', bg:'rgba(34,211,167,.15)',  calMult:1.0,  proteinMult:1.0, desc:'按计划执行' },
+  travel:  { name:'旅游',     icon:'plane',        color:'#5B9DFF', bg:'rgba(91,157,255,.15)',  calMult:1.10, proteinMult:0.9, desc:'外食难精确，热量目标 +10%；不计未运动扣分' },
+  sick:    { name:'生病',     icon:'thermometer',  color:'#FF6B8B', bg:'rgba(255,107,139,.15)', calMult:1.0,  proteinMult:1.0, desc:'暂停减脂，恢复到 TDEE；多休息、补水' },
+  intense: { name:'高强度训练', icon:'flame',        color:'#FF7A45', bg:'rgba(255,122,69,.15)',  calMult:1.15, proteinMult:1.2, desc:'备赛/突破期，热量 +15%、蛋白 ×1.2' },
+  period:  { name:'生理期',    icon:'droplet',      color:'#FF4D6D', bg:'rgba(255,77,109,.15)',  calMult:1.05, proteinMult:1.0, desc:'热量 +5%；推荐瑜伽、低强度运动；增加情绪记录' },
+  refeed:  { name:'调整期',    icon:'pause-circle', color:'#FFC83D', bg:'rgba(255,200,61,.15)',  calMult:1.0,  proteinMult:1.0, desc:'代谢喘息期，热量恢复到 TDEE 1-2 周' }
+};
+
+function currentStatus(date){
+  date = date || today();
+  // 找包含该日期的 status 区间
+  const all = cache.userStatus || [];
+  const hit = all.find(s => s.start_date <= date && (!s.end_date || s.end_date >= date));
+  return hit ? hit.status : 'normal';
+}
+function currentStatusObj(){
+  return USER_STATUSES[currentStatus()] || USER_STATUSES.normal;
+}
+function effectiveCalTarget(){
+  const base = profile.plan?.calTarget || 1500;
+  return Math.round(base * currentStatusObj().calMult);
+}
+function effectiveProteinG(){
+  const base = profile.plan?.proteinG || 105;
+  return Math.round(base * currentStatusObj().proteinMult);
+}
 const today = () => new Date().toISOString().slice(0,10);
 const fmtDate = (d) => (d instanceof Date ? d : new Date(d)).toISOString().slice(0,10);
 let viewDate = today();
@@ -738,7 +781,7 @@ async function loadProfile(){
 
 async function loadAll(){
   const uid = session.user.id;
-  const [w,f,e,wt,sl,md,cf,ach,bm,st] = await Promise.all([
+  const [w,f,e,wt,sl,md,cf,ach,bm,st,us] = await Promise.all([
     sb.from('weights').select('*').eq('user_id',uid).order('date'),
     sb.from('food_records').select('*').eq('user_id',uid).order('date'),
     sb.from('exercise_records').select('*').eq('user_id',uid).order('date'),
@@ -748,7 +791,8 @@ async function loadAll(){
     sb.from('custom_foods').select('*').eq('user_id',uid),
     sb.from('achievements').select('*').eq('user_id',uid),
     sb.from('body_measures').select('*').eq('user_id',uid).order('date'),
-    sb.from('strength_records').select('*').eq('user_id',uid).order('date')
+    sb.from('strength_records').select('*').eq('user_id',uid).order('date'),
+    sb.from('user_status').select('*').eq('user_id',uid).order('start_date', {ascending:false})
   ]);
   cache.weights = w.data || [];
   cache.food = f.data || [];
@@ -760,6 +804,7 @@ async function loadAll(){
   cache.achievements = ach.data || [];
   cache.bodyMeasures = bm.data || [];
   cache.strength = st.data || [];
+  cache.userStatus = us.data || [];
 }
 
 function showApp(){
@@ -1481,6 +1526,47 @@ function sheetTemplate(type, payload){
     <button class="btn-ghost mt-3" onclick="closeSheet()">关闭</button>
   `;
 
+  if(type==='user-status'){
+    const cur = currentStatus();
+    const history = (cache.userStatus||[]).slice(0,5);
+    return `
+      <h3 class="text-lg font-black text-center">个人状态</h3>
+      <p class="text-[11px] text-slate-400 text-center mt-1">不同状态会调整热量目标 + 教练建议</p>
+      <p class="text-[11px] text-slate-400 mt-4 mb-2">当前状态</p>
+      <div class="grid grid-cols-2 gap-2">
+        ${Object.entries(USER_STATUSES).map(([key,s])=>`
+          <div class="card-2 p-3 row-action" style="${cur===key?'border:2px solid '+s.color:''}; cursor:pointer" onclick="pickStatus('${key}')">
+            <div class="flex items-center gap-2">
+              <div class="meal-icon" style="background:${s.bg}; color:${s.color}; width:32px; height:32px"><i class="lucide lucide-${s.icon}" style="font-size:15px"></i></div>
+              <div class="flex-1">
+                <p class="text-sm font-bold">${s.name}</p>
+                <p class="text-[9px] text-slate-400 leading-tight mt-0.5">${s.desc}</p>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div id="status-form-area" class="mt-4"></div>
+      ${history.length ? `
+        <p class="text-[11px] text-slate-400 mt-5 mb-2">最近状态记录</p>
+        <div class="space-y-2">
+          ${history.map(h=>{
+            const ss = USER_STATUSES[h.status]||USER_STATUSES.normal;
+            const range = h.end_date ? `${h.start_date} → ${h.end_date}` : `${h.start_date} 起 · 进行中`;
+            return `<div class="card-2 p-3 flex items-center gap-2">
+              <div class="meal-icon" style="background:${ss.bg}; color:${ss.color}; width:28px; height:28px"><i class="lucide lucide-${ss.icon}" style="font-size:13px"></i></div>
+              <div class="flex-1">
+                <p class="text-xs font-semibold">${ss.name}</p>
+                <p class="text-[10px] text-slate-400">${range}${h.note?' · '+h.note:''}</p>
+              </div>
+              <button class="swipe-del" onclick="delUserStatus(${h.id})">删</button>
+            </div>`;
+          }).join('')}
+        </div>
+      ` : ''}
+      <button class="btn-ghost mt-4" onclick="closeSheet()">关闭</button>
+    `;
+  }
   if(type==='achievements') return achievementsTemplate();
   if(type==='history') return historyTemplate();
   if(type==='body-measure'){
@@ -2050,6 +2136,74 @@ async function saveMood(emoji, label){
   toast(`心情：${emoji} ${label} ✓`);
 }
 
+// ========== 用户状态切换 ==========
+function pickStatus(key){
+  const s = USER_STATUSES[key];
+  if(!s) return;
+  const today_ = today();
+  const html = `
+    <div class="card-2 p-3" style="border:1px solid ${s.color}">
+      <p class="text-xs font-bold" style="color:${s.color}">${s.name}</p>
+      <p class="text-[10px] text-slate-400 mt-1">${s.desc}</p>
+      <div class="grid grid-cols-2 gap-2 mt-3">
+        <div><p class="text-[10px] text-slate-400 mb-1">起始日期</p><input class="input" type="date" id="us-start" value="${today_}"></div>
+        <div><p class="text-[10px] text-slate-400 mb-1">结束日期（可选）</p><input class="input" type="date" id="us-end" placeholder="未填=进行中"></div>
+      </div>
+      <p class="text-[10px] text-slate-400 mt-2 mb-1">备注（可选）</p>
+      <input class="input" type="text" id="us-note" maxlength="30" placeholder="例：北京出差/感冒第3天">
+      <button class="btn-primary mt-3" onclick="saveStatus('${key}')">确认切换</button>
+    </div>
+  `;
+  $('status-form-area').innerHTML = html;
+}
+
+async function saveStatus(key){
+  const start_date = $('us-start').value;
+  const end_date_raw = $('us-end').value;
+  const note = $('us-note').value.trim();
+  if(!start_date){ toast('请选择起始日期','error'); return; }
+  const end_date = end_date_raw || null;
+  if(end_date && end_date < start_date){ toast('结束日期需晚于开始','error'); return; }
+  if(key === 'normal'){
+    const ongoing = (cache.userStatus||[]).filter(s => !s.end_date && s.status !== 'normal');
+    for(const s of ongoing){
+      const ed = today();
+      const { error } = await sb.from('user_status').update({ end_date: ed }).eq('id', s.id);
+      if(!error) s.end_date = ed;
+    }
+    closeSheet(); refreshAll();
+    toast('已恢复正常状态 ✓');
+    return;
+  }
+  const ongoing = (cache.userStatus||[]).filter(s => !s.end_date);
+  for(const s of ongoing){
+    const { error } = await sb.from('user_status').update({ end_date: start_date }).eq('id', s.id);
+    if(!error) s.end_date = start_date;
+  }
+  const row = { user_id: session.user.id, status: key, start_date, end_date, note: note||null };
+  const { data, error } = await sb.from('user_status').insert(row).select().single();
+  if(error){
+    if(error.code==='42P01' || error.message?.includes('relation')){
+      toast('请去 Supabase 跑最新 SQL（建 user_status 表）','error');
+    } else toast(error.message,'error');
+    return;
+  }
+  cache.userStatus.unshift(data);
+  closeSheet(); refreshAll();
+  toast(`已切换到「${USER_STATUSES[key].name}」✓`);
+}
+
+async function delUserStatus(id){
+  if(!confirm('删除这条状态记录？')) return;
+  const idx = cache.userStatus.findIndex(x=>x.id===id);
+  if(idx<0) return;
+  const { error } = await sb.from('user_status').delete().eq('id', id);
+  if(error){ toast(error.message,'error'); return; }
+  cache.userStatus.splice(idx,1);
+  refreshAll(); openSheet('user-status');
+  toast('已删除');
+}
+
 async function saveBodyMeasure(){
   const fields = ['waist','chest','hip','thigh','arm','neck','calf'];
   const row = { user_id: session.user.id, date: getSheetDate('bm-date') };
@@ -2426,14 +2580,20 @@ function refreshAll(){
   if(!profile) return;
   const d = calcDay(today());
   const plan = profile.plan || {};
-  const calT = plan.calTarget || 1500;
-  const exT = Math.round(calT * 0.3);
 
   // 顶部
   $('hi-name').textContent = profile.name;
   $('hi-avatar').textContent = profile.name.charAt(0).toUpperCase();
 
   // 主卡：进度环 = 计划进度
+  const so = currentStatusObj();
+  $('status-pill').className = 'pill';
+  $('status-pill').setAttribute('style', `background:${so.bg}; color:${so.color}; cursor:pointer`);
+  $('status-pill').innerHTML = `<i class="lucide lucide-${so.icon}" style="font-size:11px"></i>${so.name}`;
+  $('plan-name-line').textContent = (plan.name || '减脂计划');
+
+  const calT = effectiveCalTarget();
+  const exT = Math.round(calT * 0.3);
   $('m-intake').textContent = Math.round(d.intake);
   $('m-intake-target').textContent = calT;
   $('m-exercise').textContent = Math.round(d.exCal);
@@ -2491,7 +2651,7 @@ function refreshAll(){
   $('cal-cal').textContent = Math.round(d.intake);
   $('cal-target').textContent = calT;
   $('cal-remain').textContent = Math.max(0, calT - Math.round(d.intake));
-  const pT = plan.proteinG||105, cT = plan.carbG||169, fT = plan.fatG||42;
+  const pT = effectiveProteinG(), cT = plan.carbG||169, fT = plan.fatG||42;
   $('np').textContent = Math.round(d.p); $('np-t').textContent = pT;
   $('nc').textContent = Math.round(d.c); $('nc-t').textContent = cT;
   $('nf').textContent = Math.round(d.f); $('nf-t').textContent = fT;
@@ -2513,6 +2673,14 @@ function refreshAll(){
   $('me-badges').textContent = cache.achievements.length;
   $('me-badges-2').textContent = cache.achievements.length;
   $('me-phone-tail').textContent = '当前账号 ' + maskPhone(profile.phone);
+
+  // 状态卡
+  if($('me-status-icon')){
+    $('me-status-icon').setAttribute('style', `background:${so.bg}; color:${so.color}`);
+    $('me-status-icon').innerHTML = `<i class="lucide lucide-${so.icon}"></i>`;
+    $('me-status-name').textContent = so.name;
+    $('me-status-desc').textContent = so.desc;
+  }
 
   // 计划卡
   $('plan-name').textContent = plan.name || '尚未设置';
@@ -2575,20 +2743,42 @@ function renderCoachTip(){
   const mood_y = cache.mood.find(x=>x.date===yes);
   const exs_y = cache.exercise.filter(x=>x.date===yes);
   const plan = profile.plan || {};
-  const calT = plan.calTarget || 1500;
-  const pT = plan.proteinG || 105;
+  const calT = effectiveCalTarget();
+  const pT = effectiveProteinG();
   const waterT = plan.waterTargetMl || 2400;
+  const status = currentStatus();
+  const statusObj = currentStatusObj();
 
   const rules = [];
+
+  // 状态特殊建议（最高优先级，纯展示型）
+  if(status==='sick'){
+    rules.push({p:0, ico:'thermometer', tag:'生病', msg:`正处于生病状态，今天首要：① 充足水分（≥2.5L）② 优质蛋白助修复（鸡汤/鸡蛋/酸奶）③ 体感发热则停训。健康永远优先于减脂`, why:`状态：${statusObj.name}`});
+  }
+  if(status==='travel'){
+    rules.push({p:1, ico:'plane', tag:'旅游', msg:`旅游期间外食难精确，今天聚焦：① 主食减半 ② 优先蔬菜+蛋白 ③ 散步 8000+ 步替代正式运动 ④ 不必苛求记录精度`, why:`状态：${statusObj.name}（热量目标已 +10%）`});
+  }
+  if(status==='period'){
+    rules.push({p:1, ico:'droplet', tag:'生理期', msg:`生理期不必强求训练，今天试试：① 瑜伽 / 拉伸 20min ② 暖性食物（红豆/红糖姜茶）③ 充足睡眠 ④ 放过自己，体重浮动 1-2kg 是水分`, why:`状态：${statusObj.name}（热量目标已 +5%）`});
+  }
+  if(status==='intense'){
+    rules.push({p:1, ico:'flame', tag:'高强度训练期', msg:`处于高强度训练阶段，今天确保：① 蛋白 ≥${pT}g（每公斤体重 1.8-2.2g）② 训前 1h 碳水 ③ 训后 30min 蛋白+碳水补充 ④ 睡眠 ≥8h`, why:`状态：${statusObj.name}（热量已 +15%）`});
+  }
+  if(status==='refeed'){
+    rules.push({p:1, ico:'pause-circle', tag:'调整期', msg:`调整期是给代谢的恢复窗口，今天：① 热量回到 TDEE ② 多吃碳水（恢复瘦素水平）③ 减少有氧 ④ 1-2 周后再回到缺口`, why:`状态：${statusObj.name}（热量恢复到 TDEE）`});
+  }
+
+  // 通用规则（仅在 normal 状态下完整生效；其他状态只触发部分）
+  const isNormal = status === 'normal';
 
   // ===== P0: 阻塞性问题 =====
   if(sleep_y && sleep_y.hours < 5.5){
     rules.push({p:0, ico:'moon-star', tag:'睡眠', msg:`昨晚仅睡 ${sleep_y.hours}h，皮质醇升高直接拖垮减脂。今天最优先：22:30 前入睡，目标 7-8h`, why:`数据：昨日睡眠 ${sleep_y.hours}h（<5.5h 触发）`});
   }
-  if(dy.intake>0 && dy.intake > calT * 1.3){
+  if(isNormal && dy.intake>0 && dy.intake > calT * 1.3){
     rules.push({p:0, ico:'flame', tag:'热量', msg:`昨日热量 ${Math.round(dy.intake)} kcal 严重超标 ${Math.round(dy.intake-calT)}（>30%）。今天主食减半 + 30 分钟有氧，缺口拉回 -300`, why:`数据：${Math.round(dy.intake)} / ${calT} kcal`});
   }
-  if(cache.weights.length>=8){
+  if(isNormal && cache.weights.length>=8){
     const wkR = weeklyRate();
     if(wkR !== null && wkR < -1.5){
       rules.push({p:0, ico:'trending-down', tag:'减重', msg:`周减重 ${Math.abs(wkR).toFixed(1)}% 过快（>1.5%），代谢可能受损。本周提高摄入 200 kcal，多吃蛋白`, why:`数据：本周对比上周 7 日均值`});
@@ -2597,13 +2787,12 @@ function renderCoachTip(){
 
   // ===== P1: 强建议 =====
   if(dy.intake>0 && dy.p < pT * 0.7){
-    const need = pT - Math.round(dy.p);
     rules.push({p:1, ico:'beef', tag:'蛋白', msg:`昨日蛋白只摄入 ${Math.round(dy.p)}/${pT}g，今天三餐各加一份：早餐 2 个鸡蛋（12g）、午餐 100g 鸡胸（31g）、晚餐 150g 鱼（30g）`, why:`数据：昨日蛋白 ${Math.round(dy.p)}g 低于目标 70%`});
   }
-  if(dy.intake>0 && dy.intake < calT * 0.6){
+  if(isNormal && dy.intake>0 && dy.intake < calT * 0.6){
     rules.push({p:1, ico:'utensils-crossed', tag:'热量', msg:`昨日只吃了 ${Math.round(dy.intake)} kcal（<目标 60%），易触发饥饿模式。今天恢复正常摄入并优先蛋白`, why:`数据：摄入 ${Math.round(dy.intake)} / 目标 ${calT} kcal`});
   }
-  if(exs_y.length===0){
+  if(isNormal && exs_y.length===0){
     let consecNoEx = 0;
     for(let i=1;i<=7;i++){
       const d = new Date(); d.setDate(d.getDate()-i);
@@ -2622,7 +2811,7 @@ function renderCoachTip(){
   }
 
   // ===== P2: 提示 =====
-  if(dy.intake > calT * 1.05 && dy.intake <= calT * 1.3){
+  if(isNormal && dy.intake > calT * 1.05 && dy.intake <= calT * 1.3){
     rules.push({p:2, ico:'flame', tag:'热量', msg:`昨日略超 ${Math.round(dy.intake-calT)} kcal，今天增加 20 分钟快走即可回正`, why:`数据：${Math.round(dy.intake)} / ${calT} kcal`});
   }
   if(exs_y.length>0 && exs_y.every(x=>x.type==='有氧')){
@@ -2656,7 +2845,7 @@ function renderCoachTip(){
     }
   }
 
-  // 取优先级最高（数字最小）的规则
+  // 取优先级最高的规则
   rules.sort((a,b)=>a.p-b.p);
   const top = rules[0];
   const colorMap = { 0:'var(--danger)', 1:'var(--yellow)', 2:'var(--blue)', 3:'var(--accent)' };
@@ -2667,9 +2856,10 @@ function renderCoachTip(){
         <i class="lucide lucide-${top.ico}" style="font-size:17px"></i>
       </div>
       <div class="flex-1">
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <p class="text-xs font-bold">今日教练 · ${top.tag}</p>
           <span class="pill" style="background:${colorMap[top.p]}33; color:${colorMap[top.p]}; padding:1px 6px; font-size:9px">${tagMap[top.p]}</span>
+          ${!isNormal ? `<span class="pill" style="background:${statusObj.bg}; color:${statusObj.color}; padding:1px 6px; font-size:9px">${statusObj.name}模式</span>` : ''}
         </div>
         <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">${top.msg}</p>
         <p class="text-[10px] text-slate-500 mt-2"><i class="lucide lucide-info" style="font-size:10px; vertical-align:-1px"></i> ${top.why}</p>

@@ -222,3 +222,21 @@ alter table public.strength_records enable row level security;
 drop policy if exists "strength_records_owner_all" on public.strength_records;
 create policy "strength_records_owner_all" on public.strength_records
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ============================================================
+-- v7.1 追加：用户状态（正常/旅游/生病/高强度/生理期/调整期）
+-- ============================================================
+create table if not exists public.user_status (
+  id bigserial primary key,
+  user_id uuid not null references auth.users on delete cascade,
+  status text not null,        -- normal/travel/sick/intense/period/refeed
+  start_date date not null,
+  end_date date,               -- null = 进行中
+  note text,
+  created_at timestamptz default now()
+);
+create index if not exists idx_status_user_date on public.user_status (user_id, start_date desc);
+alter table public.user_status enable row level security;
+drop policy if exists "user_status_owner_all" on public.user_status;
+create policy "user_status_owner_all" on public.user_status
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
