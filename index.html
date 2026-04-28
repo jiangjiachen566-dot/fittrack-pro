@@ -1552,6 +1552,9 @@ function openSheet(type, payload){
       else renderFoodTab();
     }, 20);
   }
+  if(type === 'food-detail'){
+    setTimeout(()=>{ if(typeof qPreview === 'function') qPreview(); }, 30);
+  }
 }
 
 // 通用日期行（默认今日，可改任何日期，最多到今天）
@@ -1798,7 +1801,7 @@ function sheetTemplate(type, payload){
         </div>
       </div>
       <input type="hidden" id="food-idx" value="${payload}">
-      <button class="btn-primary mt-4" onclick="addFood(parseInt($('food-idx').value), parseFloat($('food-qty').value))">添加到 ${({breakfast:'早餐',lunch:'午餐',dinner:'晚餐',snack:'加餐'})[document.querySelector('#meal-seg button.on').dataset.meal]}</button>
+      <button id="food-add-btn" class="btn-primary mt-4" onclick="addFood(parseInt($('food-idx').value), parseFloat($('food-qty').value))">+ 添加到 ${({breakfast:'早餐',lunch:'午餐',dinner:'晚餐',snack:'加餐'})[document.querySelector('#meal-seg button.on').dataset.meal]}</button>
       <button class="btn-ghost mt-2" onclick="openSheet('food')">返回列表</button>
     `;
   }
@@ -3826,10 +3829,22 @@ function qPreview(){
   const q = parseFloat($('food-qty').value)||1;
   const lib = JSON.parse($('meal-data').value);
   const item = lib[parseInt($('food-idx').value)];
-  $('qp-cal').textContent = Math.round(item.cal*q);
-  $('qp-p').textContent = (item.p*q).toFixed(1)+'g';
-  $('qp-c').textContent = (item.c*q).toFixed(1)+'g';
-  $('qp-f').textContent = (item.f*q).toFixed(1)+'g';
+  const cal = Math.round(item.cal*q);
+  if($('qp-cal')) $('qp-cal').textContent = cal;
+  if($('qp-p')) $('qp-p').textContent = (item.p*q).toFixed(1)+'g';
+  if($('qp-c')) $('qp-c').textContent = (item.c*q).toFixed(1)+'g';
+  if($('qp-f')) $('qp-f').textContent = (item.f*q).toFixed(1)+'g';
+  // 实时更新底部添加按钮文字
+  const btn = $('food-add-btn');
+  if(btn){
+    const gMatch = (item.name.match(/(\d+(?:\.\d+)?)\s*g/i) || item.name.match(/(\d+(?:\.\d+)?)\s*ml/i));
+    const baseG = gMatch ? parseFloat(gMatch[1]) : null;
+    const grams = baseG ? Math.round(baseG*q) : null;
+    const unit = gMatch && gMatch[0].toLowerCase().includes('ml') ? 'ml' : 'g';
+    const meal = ({breakfast:'早餐',lunch:'午餐',dinner:'晚餐',snack:'加餐'})[document.querySelector('#meal-seg button.on').dataset.meal];
+    const cleanName = item.name.replace(/\s*\d+(?:\.\d+)?\s*(g|ml).*$/i,'');
+    btn.textContent = `+ ${cleanName}${grams?' '+grams+unit:' ×'+q} · ${cal}kcal → ${meal}`;
+  }
 }
 function exerciseKcalCalc(met, min){ return Math.round(met * currentWeight() * (min/60)); }
 function updateExPreview(){
@@ -3878,12 +3893,17 @@ async function addFood(idx, qty){
   const item = lib[idx];
   qty = qty || 1;
 
+  // 提取该食物的「单份克数」（如"鸡胸肉 100g"提到 100；提取不到则 null）
+  const gMatch = (item.name.match(/(\d+(?:\.\d+)?)\s*g/i) || item.name.match(/(\d+(?:\.\d+)?)\s*ml/i));
+  const baseG = gMatch ? parseFloat(gMatch[1]) : null;
+  const grams = baseG ? +(baseG * qty).toFixed(0) : null;
+
   // 检查：是不是在「编辑套餐」流程中？是的话加到 combo items，不写库
   const editing = sessionStorage.getItem('comboEditing');
   if(editing){
     const e = JSON.parse(editing);
     e.items = e.items || [];
-    e.items.push({ name:item.name, emoji:item.emoji, cal:item.cal, p:item.p, c:item.c, f:item.f, qty });
+    e.items.push({ name:item.name, emoji:item.emoji, cal:item.cal, p:item.p, c:item.c, f:item.f, qty, grams });
     sessionStorage.setItem('comboEditing', JSON.stringify(e));
     toast(`已加入套餐：${item.name} ×${qty}`);
     // 回到套餐编辑
@@ -3903,11 +3923,18 @@ async function addFood(idx, qty){
     p: +(item.p * qty).toFixed(1), c: +(item.c * qty).toFixed(1), f: +(item.f * qty).toFixed(1),
     time: tm
   };
-  const { data, error } = await sb.from('food_records').insert(row).select().single();
+  if(grams !== null) row.grams = grams;
+  let { data, error } = await sb.from('food_records').insert(row).select().single();
+  // 若 grams 列还没建，回退去掉重试
+  if(error && error.message && error.message.includes("'grams'")){
+    delete row.grams;
+    ({ data, error } = await sb.from('food_records').insert(row).select().single());
+  }
   if(error){ toast(error.message,'error'); return; }
   cache.food.push(data);
   closeSheet(); refreshAll(); checkAchievements();
-  toast(`+ ${item.name}${qty!==1?' ×'+qty:''} (${row.cal}kcal) ✓`);
+  const gramsStr = grams ? ` · ${grams}g` : (qty!==1 ? ' ×'+qty : '');
+  toast(`+ ${item.name}${gramsStr} (${row.cal}kcal) ✓`);
 }
 
 async function saveExercise(){
@@ -4824,15 +4851,30 @@ function renderRecordList(cat){
               ? `<button class="px-3 py-1.5 rounded-lg text-xs font-bold text-white grad-primary" style="border:none; cursor:pointer" onclick="openSheet('food')">+ 添加</button>`
               : `<p class="font-bold text-sm number-tabular">${total} <span class="text-[10px] text-slate-400 font-normal">kcal</span></p>`}
           </div>
-          ${items.length ? `<div class="mt-3 pt-3 border-t" style="border-color:var(--line)">
-            ${items.map(x=>`
-              <div class="flex justify-between items-center text-xs py-1.5">
-                <span class="text-slate-300">${x.emoji||'·'} ${x.name}</span>
-                <div class="flex items-center gap-2">
-                  <span class="text-slate-400 number-tabular">${x.cal} kcal</span>
+          ${items.length ? `<div class="mt-3 pt-3" style="border-top:1px solid var(--line)">
+            ${items.map(x=>{
+              // 优先显示 grams；没有则显示 ×qty；都没有就只显示名称
+              const portion = x.grams ? `${x.grams}${x.name && x.name.toLowerCase().includes('ml')?'ml':'g'}`
+                            : (x.qty && Number(x.qty)!==1 ? `×${x.qty}` : '');
+              const cleanName = (x.name||'').replace(/\s*\d+(?:\.\d+)?\s*(g|ml).*$/i,'');
+              return `
+              <div class="flex justify-between items-start text-xs py-1.5">
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span>${x.emoji||'·'}</span>
+                    <span class="text-slate-200 font-semibold truncate">${cleanName}</span>
+                    ${portion?`<span class="text-[10px] text-slate-500">${portion}</span>`:''}
+                  </div>
+                  <div class="text-[10px] text-slate-500 mt-0.5 number-tabular">
+                    P${(+x.p||0).toFixed(1)} · C${(+x.c||0).toFixed(1)} · F${(+x.f||0).toFixed(1)}${x.time?` · ${x.time}`:''}
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                  <span class="text-slate-300 number-tabular text-xs font-bold">${x.cal} <span class="text-[9px] text-slate-500 font-normal">kcal</span></span>
                   <button class="swipe-del" onclick="delRecord('food', ${x.id})">删</button>
                 </div>
-              </div>`).join('')}
+              </div>`;
+            }).join('')}
           </div>` : ''}
         </div>`;
     }).join('');

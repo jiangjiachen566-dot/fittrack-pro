@@ -2,7 +2,7 @@
 // 策略修正：HTML/JS 同源 → network-first（保证新版立即生效）
 //          静态资源 → cache-first
 //          外部 CDN → stale-while-revalidate
-const CACHE = 'fittrack-pro-v15-3';
+const CACHE = 'fittrack-pro-v15-4';
 const CORE = [
   './',
   './index.html',
