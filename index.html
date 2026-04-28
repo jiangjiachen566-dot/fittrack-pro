@@ -20,8 +20,12 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lucide-static@0.460.0/font/lucide.css">
 <style>
+  /* Lucide SVG 兜底：动态注入的 svg.lucide 自动适配尺寸/颜色 */
+  i.lucide { display:inline-flex; align-items:center; justify-content:center; }
+  svg.lucide { width:1em; height:1em; stroke:currentColor; stroke-width:2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
   :root{
     --bg:#0B0F14; --panel:#141A22; --panel-2:#1B232D;
     --line:rgba(255,255,255,.06); --text:#E7ECF2; --muted:#8A95A6;
@@ -306,6 +310,12 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- 今日教练（基于昨日数据规则引擎） -->
+      <div class="mt-5 card p-4 relative overflow-hidden">
+        <div class="absolute top-0 left-0 w-1 h-full grad-accent"></div>
+        <div class="pl-2" id="coach-tip"></div>
       </div>
 
       <!-- 本周打卡 -->
@@ -656,7 +666,7 @@ let session = null;
 let profile = null;          // profiles 行
 let cache = {                // 内存缓存所有用户数据
   weights:[], food:[], exercise:[], water:[], sleep:[], mood:[],
-  customFoods:[], achievements:[], bodyMeasures:[]
+  customFoods:[], achievements:[], bodyMeasures:[], strength:[]
 };
 const today = () => new Date().toISOString().slice(0,10);
 const fmtDate = (d) => (d instanceof Date ? d : new Date(d)).toISOString().slice(0,10);
@@ -728,7 +738,7 @@ async function loadProfile(){
 
 async function loadAll(){
   const uid = session.user.id;
-  const [w,f,e,wt,sl,md,cf,ach,bm] = await Promise.all([
+  const [w,f,e,wt,sl,md,cf,ach,bm,st] = await Promise.all([
     sb.from('weights').select('*').eq('user_id',uid).order('date'),
     sb.from('food_records').select('*').eq('user_id',uid).order('date'),
     sb.from('exercise_records').select('*').eq('user_id',uid).order('date'),
@@ -737,7 +747,8 @@ async function loadAll(){
     sb.from('mood_records').select('*').eq('user_id',uid),
     sb.from('custom_foods').select('*').eq('user_id',uid),
     sb.from('achievements').select('*').eq('user_id',uid),
-    sb.from('body_measures').select('*').eq('user_id',uid).order('date')
+    sb.from('body_measures').select('*').eq('user_id',uid).order('date'),
+    sb.from('strength_records').select('*').eq('user_id',uid).order('date')
   ]);
   cache.weights = w.data || [];
   cache.food = f.data || [];
@@ -748,6 +759,7 @@ async function loadAll(){
   cache.customFoods = cf.data || [];
   cache.achievements = ach.data || [];
   cache.bodyMeasures = bm.data || [];
+  cache.strength = st.data || [];
 }
 
 function showApp(){
@@ -1223,6 +1235,15 @@ function openSheet(type, payload){
   setTimeout(()=>sheet.classList.add('show'), 10);
 }
 
+// 通用日期行（默认今日，可改任何日期，最多到今天）
+function dateRow(id){
+  return `<div class="flex items-center justify-center gap-2 mt-2">
+    <i class="lucide lucide-calendar" style="font-size:14px; color:var(--muted)"></i>
+    <input class="input" id="${id}" type="date" value="${today()}" max="${today()}" style="width:auto; padding:6px 10px; font-size:12px; text-align:center">
+  </div>`;
+}
+function getSheetDate(id){ return $(id)?.value || today(); }
+
 function sheetTemplate(type, payload){
   if(type==='quick') return `
     <h3 class="text-lg font-black text-center">快速记录</h3>
@@ -1249,8 +1270,8 @@ function sheetTemplate(type, payload){
     const last = cache.weights[cache.weights.length-1]?.kg || profile?.start_weight || 68;
     return `
       <h3 class="text-lg font-black text-center">记录体重</h3>
-      <p class="text-[11px] text-slate-400 text-center mt-1">${today()}</p>
-      <div class="mt-5">
+      ${dateRow('w-date')}
+      <div class="mt-4">
         <input class="number-input" type="number" step="0.1" id="in-weight" value="${last}" placeholder="68.2">
         <p class="text-center text-[10px] text-slate-500 mt-1">kg · 建议晨起空腹称量</p>
       </div>
@@ -1271,8 +1292,9 @@ function sheetTemplate(type, payload){
     const recent = recentFoods();
     return `
       <h3 class="text-lg font-black text-center">记录饮食</h3>
+      ${dateRow('f-date')}
       <p class="text-[11px] text-slate-400 text-center mt-1">选择餐次和食物</p>
-      <div class="seg mt-4" id="meal-seg">
+      <div class="seg mt-3" id="meal-seg">
         <button class="on" data-meal="breakfast">早餐</button>
         <button data-meal="lunch">午餐</button>
         <button data-meal="dinner">晚餐</button>
@@ -1344,28 +1366,30 @@ function sheetTemplate(type, payload){
   `;
 
   if(type==='exercise'){
-    const types = exerciseTypes();
+    // 三类型 Tab：cardio（有氧）/ strength（力量）/ flexibility（柔韧）
+    const tab = exState.tab || 'cardio';
     return `
       <h3 class="text-lg font-black text-center">记录运动</h3>
-      <p class="text-[11px] text-slate-400 text-center mt-1">基于 MET 公式按当前体重 ${currentWeight().toFixed(1)}kg 计算</p>
-      <p class="text-[11px] text-slate-400 mt-4 mb-2">运动类型</p>
-      <div class="chip-select" id="ex-types">
-        ${types.map((t,i)=>`<div class="chip ${i===0?'on':''}" data-i="${i}"><i class="lucide lucide-${t.icon}" style="font-size:13px; vertical-align:-2px; margin-right:3px"></i>${t.name}</div>`).join('')}
+      ${dateRow('e-date')}
+      <div class="seg mt-3">
+        <button class="${tab==='cardio'?'on':''}" onclick="exState.tab='cardio'; openSheet('exercise')">有氧</button>
+        <button class="${tab==='strength'?'on':''}" onclick="exState.tab='strength'; openSheet('exercise')">力量</button>
+        <button class="${tab==='flexibility'?'on':''}" onclick="exState.tab='flexibility'; openSheet('exercise')">柔韧</button>
       </div>
-      <p class="text-[11px] text-slate-400 mt-5 mb-2">时长（分钟）</p>
-      <input class="number-input" type="number" id="ex-min" value="30" placeholder="30">
-      <p class="text-center text-[11px] mt-2" style="color:var(--accent)">预计消耗 <span id="ex-cal-preview">${exerciseKcalCalc(types[0].met, 30)}</span> kcal</p>
-      <input type="hidden" id="ex-types-data" value='${JSON.stringify(types).replace(/'/g,"&#39;")}'>
-      <button class="btn-primary mt-5" onclick="saveExercise()">保存记录</button>
-      <button class="btn-ghost mt-2" onclick="closeSheet()">取消</button>
+      <p class="text-[10px] text-slate-500 text-center mt-2">基于 MET × 当前体重 ${currentWeight().toFixed(1)}kg × 时长 / 60</p>
+      <div class="mt-3" id="ex-tab-body">${exTabContent(tab)}</div>
     `;
+  }
+  if(type==='strength-detail'){
+    return strengthDetailTemplate(payload);
   }
 
   if(type==='water'){
     const target = profile?.plan?.waterTargetMl || 2400;
     return `
       <h3 class="text-lg font-black text-center">记录饮水</h3>
-      <p class="text-[11px] text-slate-400 text-center mt-1">今日已喝 ${(getWater()/1000).toFixed(1)} / ${(target/1000).toFixed(1)} L</p>
+      ${dateRow('wt-date')}
+      <p class="text-[11px] text-slate-400 text-center mt-1">已喝 ${(getWater(getSheetDate('wt-date'))/1000).toFixed(1)} / ${(target/1000).toFixed(1)} L</p>
       <div class="grid grid-cols-3 gap-3 mt-5">
         ${[100,150,200,250,300,500].map(ml=>`
           <button class="quick-btn" onclick="addWater(${ml}); closeSheet()">
@@ -1381,6 +1405,7 @@ function sheetTemplate(type, payload){
     const cur = cache.sleep.find(x=>x.date===today()) || {bedtime:'23:00', wake_time:'07:00'};
     return `
       <h3 class="text-lg font-black text-center">记录睡眠</h3>
+      ${dateRow('s-date')}
       <p class="text-[11px] text-slate-400 text-center mt-1">输入入睡和起床时间</p>
       <div class="grid grid-cols-2 gap-3 mt-5">
         <div><label class="text-[11px] text-slate-400 block mb-1.5">入睡时间</label><input class="input" type="time" id="in-bed" value="${cur.bedtime||'23:00'}"></div>
@@ -1396,6 +1421,7 @@ function sheetTemplate(type, payload){
     const moods = [['🤩','状态爆棚'],['😊','不错'],['😐','一般'],['😩','疲惫'],['😤','焦虑'],['😴','困倦']];
     return `
       <h3 class="text-lg font-black text-center">今日心情</h3>
+      ${dateRow('m-date')}
       <p class="text-[11px] text-slate-400 text-center mt-1">情绪也是减脂关键变量</p>
       <div class="grid grid-cols-2 gap-3 mt-5">
         ${moods.map(([e,l])=>`<div class="quick-btn" onclick="saveMood('${e}','${l}')"><span class="text-2xl">${e}</span><span class="text-xs font-semibold">${l}</span></div>`).join('')}
@@ -1461,8 +1487,8 @@ function sheetTemplate(type, payload){
     const last = cache.bodyMeasures[cache.bodyMeasures.length-1] || {};
     return `
       <h3 class="text-lg font-black text-center">记录身体围度</h3>
+      ${dateRow('bm-date')}
       <p class="text-[11px] text-slate-400 text-center mt-1">建议晨起空腹、放松状态测量 · 单位 cm</p>
-      <p class="text-[10px] text-slate-500 text-center mt-1">${today()} · 同日重复记录会覆盖</p>
       <div class="grid grid-cols-2 gap-3 mt-4">
         <div><p class="text-[11px] text-slate-400 mb-1.5">腰围</p><input class="input" type="number" step="0.1" id="bm-waist" value="${last.waist||''}" placeholder="78.5"></div>
         <div><p class="text-[11px] text-slate-400 mb-1.5">胸围</p><input class="input" type="number" step="0.1" id="bm-chest" value="${last.chest||''}" placeholder="96.0"></div>
@@ -1519,6 +1545,309 @@ function exerciseTypes(){ return [
   {name:'划船机', icon:'rowing-boat', met:7.0, type:'综合'},
   {name:'跳操', icon:'music', met:6.5, type:'有氧'}
 ];}
+
+// ============================================================
+// 运动 v6 增强：分有氧/力量/柔韧 + 力量动作库 + PR 跟踪
+// ============================================================
+const exState = { tab:'cardio' };
+
+const CARDIO_TYPES = [
+  {id:'walk', name:'快走', met:4.3, icon:'footprints'},
+  {id:'jog', name:'慢跑', met:7.0, icon:'footprints'},
+  {id:'run', name:'快跑', met:10.0, icon:'rabbit'},
+  {id:'bike_easy', name:'骑行 (轻松)', met:5.0, icon:'bike'},
+  {id:'bike_hard', name:'骑行 (强度)', met:8.5, icon:'bike'},
+  {id:'swim', name:'游泳', met:8.0, icon:'waves'},
+  {id:'hiit', name:'HIIT', met:9.0, icon:'zap'},
+  {id:'rope', name:'跳绳', met:11.0, icon:'circle-dashed'},
+  {id:'stair', name:'爬楼梯', met:8.8, icon:'arrow-up-right'},
+  {id:'rower', name:'划船机', met:7.0, icon:'minus'},
+  {id:'elliptical', name:'椭圆机', met:5.5, icon:'infinity'},
+  {id:'dance', name:'跳操', met:6.5, icon:'music'}
+];
+
+const FLEX_TYPES = [
+  {id:'yoga', name:'瑜伽', met:2.8, icon:'flower-2'},
+  {id:'pilates', name:'普拉提', met:3.0, icon:'flower-2'},
+  {id:'stretch', name:'拉伸', met:2.3, icon:'move'},
+  {id:'foam_roll', name:'泡沫轴放松', met:2.5, icon:'cylinder'},
+  {id:'tai_chi', name:'太极', met:3.0, icon:'flower-2'},
+  {id:'meditate', name:'冥想', met:1.3, icon:'flower'}
+];
+
+// 力量动作库：7 部位 × 5-8 动作。met 按动作强度（compound 6.0 / isolation 4.5 / bodyweight 4.0）
+const STRENGTH_LIBRARY = {
+  chest: { name:'胸', icon:'shield', items:[
+    {id:'bench_press', name:'杠铃卧推', met:6.0, equip:'杠铃'},
+    {id:'db_bench', name:'哑铃卧推', met:5.5, equip:'哑铃'},
+    {id:'incline_bench', name:'上斜卧推', met:6.0, equip:'杠铃'},
+    {id:'db_fly', name:'哑铃飞鸟', met:4.5, equip:'哑铃'},
+    {id:'pushup', name:'俯卧撑', met:4.0, equip:'自重'},
+    {id:'dip', name:'双杠臂屈伸', met:6.5, equip:'自重/负重'},
+    {id:'cable_fly', name:'绳索夹胸', met:4.5, equip:'绳索'}
+  ]},
+  back: { name:'背', icon:'square', items:[
+    {id:'deadlift', name:'硬拉', met:7.5, equip:'杠铃'},
+    {id:'pullup', name:'引体向上', met:6.5, equip:'自重'},
+    {id:'lat_pulldown', name:'高位下拉', met:5.0, equip:'器械'},
+    {id:'barbell_row', name:'杠铃划船', met:6.0, equip:'杠铃'},
+    {id:'db_row', name:'哑铃划船', met:5.5, equip:'哑铃'},
+    {id:'seated_row', name:'坐姿划船', met:5.0, equip:'器械'},
+    {id:'face_pull', name:'面拉', met:4.5, equip:'绳索'}
+  ]},
+  shoulder: { name:'肩', icon:'circle', items:[
+    {id:'ohp', name:'站姿推举', met:6.0, equip:'杠铃'},
+    {id:'db_press', name:'哑铃推举', met:5.5, equip:'哑铃'},
+    {id:'lateral_raise', name:'侧平举', met:4.0, equip:'哑铃'},
+    {id:'rear_delt_fly', name:'反向飞鸟', met:4.0, equip:'哑铃'},
+    {id:'shrug', name:'耸肩', met:4.5, equip:'哑铃/杠铃'},
+    {id:'arnold_press', name:'阿诺德推举', met:5.5, equip:'哑铃'}
+  ]},
+  leg: { name:'腿', icon:'move-vertical', items:[
+    {id:'squat', name:'深蹲', met:7.0, equip:'杠铃'},
+    {id:'front_squat', name:'前蹲', met:7.0, equip:'杠铃'},
+    {id:'leg_press', name:'腿举', met:6.0, equip:'器械'},
+    {id:'rdl', name:'罗马尼亚硬拉', met:6.5, equip:'杠铃'},
+    {id:'lunge', name:'弓步蹲', met:5.5, equip:'哑铃/自重'},
+    {id:'leg_ext', name:'腿屈伸', met:4.5, equip:'器械'},
+    {id:'leg_curl', name:'腿弯举', met:4.5, equip:'器械'},
+    {id:'calf_raise', name:'提踵', met:3.5, equip:'器械/自重'}
+  ]},
+  glute: { name:'臀', icon:'circle-dot', items:[
+    {id:'hip_thrust', name:'臀推', met:6.5, equip:'杠铃'},
+    {id:'glute_bridge', name:'臀桥', met:4.5, equip:'自重/负重'},
+    {id:'cable_kickback', name:'绳索后踢', met:4.5, equip:'绳索'},
+    {id:'sumo_dl', name:'相扑硬拉', met:7.0, equip:'杠铃'},
+    {id:'bulgarian_split', name:'保加利亚分腿蹲', met:6.0, equip:'哑铃'}
+  ]},
+  arm: { name:'手臂', icon:'flame', items:[
+    {id:'barbell_curl', name:'杠铃弯举', met:4.5, equip:'杠铃'},
+    {id:'db_curl', name:'哑铃弯举', met:4.5, equip:'哑铃'},
+    {id:'hammer_curl', name:'锤式弯举', met:4.5, equip:'哑铃'},
+    {id:'tricep_pushdown', name:'三头下压', met:4.5, equip:'绳索'},
+    {id:'skull_crusher', name:'仰卧臂屈伸', met:4.5, equip:'杠铃'},
+    {id:'preacher_curl', name:'牧师凳弯举', met:4.5, equip:'杠铃'}
+  ]},
+  core: { name:'核心', icon:'target', items:[
+    {id:'plank', name:'平板支撑', met:3.5, equip:'自重', byTime:true},
+    {id:'sit_up', name:'仰卧起坐', met:4.0, equip:'自重'},
+    {id:'crunch', name:'卷腹', met:4.0, equip:'自重'},
+    {id:'leg_raise', name:'举腿', met:4.5, equip:'自重'},
+    {id:'russian_twist', name:'俄罗斯转体', met:4.5, equip:'自重/负重'},
+    {id:'cable_crunch', name:'绳索卷腹', met:4.5, equip:'绳索'},
+    {id:'side_plank', name:'侧平板', met:3.5, equip:'自重', byTime:true}
+  ]}
+};
+
+function exTabContent(tab){
+  if(tab==='cardio'){
+    return `
+      <p class="text-[11px] text-slate-400 mb-2">类型</p>
+      <div class="chip-select" id="ex-cardio-types">
+        ${CARDIO_TYPES.map((t,i)=>`<div class="chip ${i===0?'on':''}" data-i="${i}">
+          <i class="lucide lucide-${t.icon}" style="font-size:13px; vertical-align:-2px; margin-right:3px"></i>${t.name}
+        </div>`).join('')}
+      </div>
+      <p class="text-[11px] text-slate-400 mt-4 mb-2">时长（分钟）</p>
+      <input class="number-input" type="number" id="ex-cardio-min" value="30" oninput="updateCardioPreview()">
+      <p class="text-center text-[11px] mt-2" style="color:var(--accent)">预计消耗 <span id="ex-cardio-cal">${exerciseKcalCalc(CARDIO_TYPES[0].met,30)}</span> kcal</p>
+      <button class="btn-primary mt-4" onclick="saveCardio()">保存有氧</button>
+      <button class="btn-ghost mt-2" onclick="closeSheet()">取消</button>
+    `;
+  }
+  if(tab==='strength'){
+    const parts = Object.keys(STRENGTH_LIBRARY);
+    return `
+      <p class="text-[11px] text-slate-400 mb-2">选择部位</p>
+      <div class="grid grid-cols-4 gap-2">
+        ${parts.map(p=>{
+          const lib = STRENGTH_LIBRARY[p];
+          return `<div class="quick-btn" style="padding:10px 4px" onclick="exState.part='${p}'; openSheet('exercise')">
+            <div class="meal-icon" style="background:rgba(255,122,69,.15); color:var(--primary); width:36px; height:36px"><i class="lucide lucide-${lib.icon}" style="font-size:16px"></i></div>
+            <span class="text-[11px] font-semibold">${lib.name}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      ${exState.part ? `
+        <p class="text-[11px] text-slate-400 mt-4 mb-2">${STRENGTH_LIBRARY[exState.part].name} · 选择动作</p>
+        <div class="space-y-2 max-h-64 overflow-y-auto" style="scrollbar-width:none">
+          ${STRENGTH_LIBRARY[exState.part].items.map((it,iIdx)=>{
+            const pr = strengthPR(it.id);
+            return `<div class="food-row" onclick="openStrengthDetail('${exState.part}', ${iIdx})">
+              <div class="meal-icon" style="background:rgba(255,122,69,.12); color:var(--primary); width:34px; height:34px"><i class="lucide lucide-dumbbell" style="font-size:15px"></i></div>
+              <div class="flex-1">
+                <p class="text-sm font-semibold">${it.name}</p>
+                <p class="text-[10px] text-slate-400">${it.equip} · MET ${it.met}${pr ? ' · 个人最佳 '+pr+'kg' : ''}</p>
+              </div>
+              <i class="lucide lucide-chevron-right text-slate-500"></i>
+            </div>`;
+          }).join('')}
+        </div>
+      ` : '<p class="empty mt-4"><i class="lucide lucide-hand-pointer"></i>先选一个部位</p>'}
+      <button class="btn-ghost mt-3" onclick="closeSheet()">关闭</button>
+    `;
+  }
+  if(tab==='flexibility'){
+    return `
+      <p class="text-[11px] text-slate-400 mb-2">类型</p>
+      <div class="chip-select" id="ex-flex-types">
+        ${FLEX_TYPES.map((t,i)=>`<div class="chip ${i===0?'on':''}" data-i="${i}">
+          <i class="lucide lucide-${t.icon}" style="font-size:13px; vertical-align:-2px; margin-right:3px"></i>${t.name}
+        </div>`).join('')}
+      </div>
+      <p class="text-[11px] text-slate-400 mt-4 mb-2">时长（分钟）</p>
+      <input class="number-input" type="number" id="ex-flex-min" value="20" oninput="updateFlexPreview()">
+      <p class="text-center text-[11px] mt-2" style="color:var(--accent)">预计消耗 <span id="ex-flex-cal">${exerciseKcalCalc(FLEX_TYPES[0].met,20)}</span> kcal</p>
+      <button class="btn-primary mt-4" onclick="saveFlex()">保存柔韧</button>
+      <button class="btn-ghost mt-2" onclick="closeSheet()">取消</button>
+    `;
+  }
+}
+
+function strengthDetailTemplate(payload){
+  const { part, ex } = payload;
+  const pr = strengthPR(ex.id);
+  const last = cache.strength?.filter(x=>x.exercise_id===ex.id).slice(-1)[0];
+  // 把动作元数据存到 window，方便 recalc 函数读
+  window._sdMeta = { part, ex };
+  setTimeout(()=>recalcStrength(), 100);
+  return `
+    <h3 class="text-lg font-black text-center">${STRENGTH_LIBRARY[part].name} · ${ex.name}</h3>
+    ${dateRow('sd-date')}
+    <p class="text-[11px] text-slate-400 text-center mt-1">${ex.equip} · MET ${ex.met}${pr?' · 个人最佳 '+pr+'kg':''}</p>
+    <div class="grid grid-cols-3 gap-2 mt-4">
+      <div><p class="text-[10px] text-slate-400 mb-1">组数</p><input class="input" type="number" id="sd-sets" min="1" value="${last?.sets||4}" oninput="recalcStrength()"></div>
+      <div><p class="text-[10px] text-slate-400 mb-1">${ex.byTime?'时长(秒)':'次数'}</p><input class="input" type="number" id="sd-reps" min="1" value="${last?.reps || (ex.byTime?60:8)}" oninput="recalcStrength()"></div>
+      <div><p class="text-[10px] text-slate-400 mb-1">重量(kg)</p><input class="input" type="number" step="0.5" id="sd-weight" min="0" value="${last?.weight||0}" oninput="recalcStrength()"></div>
+    </div>
+    <div class="grid grid-cols-2 gap-2 mt-3">
+      <div><p class="text-[10px] text-slate-400 mb-1">组间休息(秒)</p><input class="input" type="number" id="sd-rest" min="0" value="${last?.rest_sec||90}" oninput="recalcStrength()"></div>
+      <div><p class="text-[10px] text-slate-400 mb-1">备注</p><input class="input" type="text" id="sd-note" maxlength="30" placeholder="今日状态/感受"></div>
+    </div>
+    <p class="text-center text-[11px] mt-3" style="color:var(--accent)">
+      预计 <span id="sd-cal">--</span> kcal · 总训练 <span id="sd-time">--</span> 分钟
+    </p>
+    <button class="btn-primary mt-4" onclick='saveStrength(window._sdMeta)'>
+      保存
+    </button>
+    <button class="btn-ghost mt-2" onclick="exState.tab='strength'; openSheet('exercise')">返回动作列表</button>
+  `;
+}
+
+function recalcStrength(){
+  const meta = window._sdMeta;
+  if(!meta) return;
+  const sets = parseInt($('sd-sets')?.value)||0;
+  const reps = parseInt($('sd-reps')?.value)||0;
+  const rest = parseInt($('sd-rest')?.value)||90;
+  const perSet = (meta.ex.byTime ? reps : reps*3) + rest;
+  const totalMin = Math.max(1, Math.round(sets*perSet/60));
+  const cal = Math.round(meta.ex.met * currentWeight() * (totalMin/60));
+  if($('sd-time')) $('sd-time').textContent = totalMin;
+  if($('sd-cal')) $('sd-cal').textContent = cal;
+}
+
+function strengthPR(exId){
+  if(!cache.strength) return null;
+  const recs = cache.strength.filter(x=>x.exercise_id===exId);
+  if(!recs.length) return null;
+  return Math.max(...recs.map(x=>Number(x.weight)||0)) || null;
+}
+
+function openStrengthDetail(part, iIdx){
+  const ex = STRENGTH_LIBRARY[part].items[iIdx];
+  openSheet('strength-detail', { part, ex });
+}
+
+function updateCardioPreview(){
+  const i = parseInt(document.querySelector('#ex-cardio-types .chip.on')?.dataset.i || 0);
+  const min = parseFloat($('ex-cardio-min').value)||0;
+  $('ex-cardio-cal').textContent = exerciseKcalCalc(CARDIO_TYPES[i].met, min);
+}
+function updateFlexPreview(){
+  const i = parseInt(document.querySelector('#ex-flex-types .chip.on')?.dataset.i || 0);
+  const min = parseFloat($('ex-flex-min').value)||0;
+  $('ex-flex-cal').textContent = exerciseKcalCalc(FLEX_TYPES[i].met, min);
+}
+
+async function saveCardio(){
+  const i = parseInt(document.querySelector('#ex-cardio-types .chip.on')?.dataset.i || 0);
+  const t = CARDIO_TYPES[i];
+  const min = parseFloat($('ex-cardio-min').value);
+  if(isNaN(min)||min<1||min>600){ toast('时长 1-600','error'); return; }
+  const cal = exerciseKcalCalc(t.met, min);
+  const date = getSheetDate('e-date');
+  const tm = nowHHMM();
+  const row = { user_id: session.user.id, date, name:t.name, type:'有氧', met:t.met, min, cal, time:tm };
+  const { data, error } = await sb.from('exercise_records').insert(row).select().single();
+  if(error){ toast(error.message,'error'); return; }
+  cache.exercise.push(data);
+  closeSheet(); refreshAll(); checkAchievements();
+  toast(`+ ${t.name} ${min}min (${cal}kcal) ✓`);
+}
+async function saveFlex(){
+  const i = parseInt(document.querySelector('#ex-flex-types .chip.on')?.dataset.i || 0);
+  const t = FLEX_TYPES[i];
+  const min = parseFloat($('ex-flex-min').value);
+  if(isNaN(min)||min<1||min>600){ toast('时长 1-600','error'); return; }
+  const cal = exerciseKcalCalc(t.met, min);
+  const date = getSheetDate('e-date');
+  const tm = nowHHMM();
+  const row = { user_id: session.user.id, date, name:t.name, type:'柔韧', met:t.met, min, cal, time:tm };
+  const { data, error } = await sb.from('exercise_records').insert(row).select().single();
+  if(error){ toast(error.message,'error'); return; }
+  cache.exercise.push(data);
+  closeSheet(); refreshAll(); checkAchievements();
+  toast(`+ ${t.name} ${min}min (${cal}kcal) ✓`);
+}
+async function saveStrength(){
+  const meta = window._sdMeta;
+  if(!meta){ toast('动作数据丢失，请重新进入','error'); return; }
+  const sets = parseInt($('sd-sets').value);
+  const reps = parseInt($('sd-reps').value);
+  const weight = parseFloat($('sd-weight').value)||0;
+  const rest = parseInt($('sd-rest').value)||90;
+  const note = $('sd-note').value.trim();
+  if(!sets||sets<1){ toast('组数至少 1','error'); return; }
+  if(!reps||reps<1){ toast(meta.ex.byTime?'时长至少 1 秒':'次数至少 1','error'); return; }
+  const perSet = (meta.ex.byTime ? reps : reps*3) + rest;
+  const totalMin = Math.max(1, Math.round(sets*perSet/60));
+  const cal = Math.round(meta.ex.met * currentWeight() * (totalMin/60));
+  const date = getSheetDate('sd-date');
+  const tm = nowHHMM();
+  const sRow = {
+    user_id: session.user.id, date,
+    body_part: meta.part, exercise_id: meta.ex.id, exercise_name: meta.ex.name,
+    sets, reps, weight, rest_sec: rest, cal, time:tm, note: note||null
+  };
+  const { data: sData, error: sErr } = await sb.from('strength_records').insert(sRow).select().single();
+  if(sErr){
+    if(sErr.code==='42P01' || sErr.message?.includes('relation')){
+      toast('请去 Supabase 跑最新 SQL（建 strength_records 表）','error');
+    } else toast(sErr.message,'error');
+    return;
+  }
+  cache.strength = cache.strength || [];
+  cache.strength.push(sData);
+
+  const eRow = { user_id: session.user.id, date, name:`${STRENGTH_LIBRARY[meta.part].name}·${meta.ex.name}`, type:'力量', met:meta.ex.met, min:totalMin, cal, time:tm };
+  const { data: eData, error: eErr } = await sb.from('exercise_records').insert(eRow).select().single();
+  if(!eErr) cache.exercise.push(eData);
+
+  const oldPR = strengthPR(meta.ex.id) || 0;
+  const recsForEx = cache.strength.filter(x=>x.exercise_id===meta.ex.id);
+  const newPR = recsForEx.length ? Math.max(...recsForEx.map(x=>Number(x.weight))) : 0;
+  closeSheet(); refreshAll(); checkAchievements();
+  if(weight>0 && newPR > oldPR){
+    toast(`🏆 新 PR！${meta.ex.name} ${weight}kg`, 'gold');
+  } else {
+    toast(`+ ${meta.ex.name} ${sets}×${reps}@${weight}kg (${cal}kcal) ✓`);
+  }
+}
+function nowHHMM(){
+  const d = new Date();
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
 
 function foodRow(p, i){
   return `<div class="food-row" onclick="openSheet('food-detail', ${i})">
@@ -1609,10 +1938,10 @@ async function saveWeight(){
   const note = $('in-note').value.trim();
   if(isNaN(v) || v<20 || v>200){ toast('请输入有效体重（20-200kg）','error'); return; }
   if(!isNaN(fat) && (fat<5 || fat>50)){ toast('体脂率范围 5-50%','error'); return; }
-  const t = today();
+  const t = getSheetDate('w-date');
   const existed = cache.weights.find(x=>x.date===t);
   if(existed && Math.abs(existed.kg - v) > 0.01){
-    if(!confirm(`今日已记录 ${existed.kg}kg，是否覆盖为 ${v}kg？`)) return;
+    if(!confirm(`${t} 已记录 ${existed.kg}kg，是否覆盖为 ${v}kg？`)) return;
   }
   const last = cache.weights[cache.weights.length-1];
   if(last && last.date !== t && Math.abs(last.kg - v) > 2){
@@ -1641,7 +1970,7 @@ async function addFood(idx, qty){
   const now = new Date();
   const tm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   const row = {
-    user_id: session.user.id, date: today(), meal,
+    user_id: session.user.id, date: getSheetDate('f-date'), meal,
     name: item.name, emoji: item.emoji, qty,
     cal: Math.round(item.cal * qty),
     p: +(item.p * qty).toFixed(1), c: +(item.c * qty).toFixed(1), f: +(item.f * qty).toFixed(1),
@@ -1672,7 +2001,7 @@ async function saveExercise(){
 }
 
 async function addWater(ml){
-  const t = today();
+  const t = getSheetDate('wt-date') || today();
   const cur = cache.water.find(x=>x.date===t);
   const newMl = (cur ? cur.ml : 0) + ml;
   const { data, error } = await sb.from('water_records').upsert(
@@ -1694,7 +2023,7 @@ async function saveSleep(){
   let mins = (wh*60+wm) - (bh*60+bm);
   if(mins<=0) mins += 24*60;
   const hours = +(mins/60).toFixed(1);
-  const t = today();
+  const t = getSheetDate('s-date');
   const { data, error } = await sb.from('sleep_records').upsert(
     { user_id: session.user.id, date:t, bedtime:bed, wake_time:wake, hours },
     { onConflict:'user_id,date' }
@@ -1708,7 +2037,7 @@ async function saveSleep(){
 }
 
 async function saveMood(emoji, label){
-  const t = today();
+  const t = getSheetDate('m-date');
   const { data, error } = await sb.from('mood_records').upsert(
     { user_id: session.user.id, date:t, emoji, label },
     { onConflict:'user_id,date' }
@@ -1723,7 +2052,7 @@ async function saveMood(emoji, label){
 
 async function saveBodyMeasure(){
   const fields = ['waist','chest','hip','thigh','arm','neck','calf'];
-  const row = { user_id: session.user.id, date: today() };
+  const row = { user_id: session.user.id, date: getSheetDate('bm-date') };
   let any = false;
   for(const k of fields){
     const v = parseFloat($('bm-'+k).value);
@@ -1742,7 +2071,7 @@ async function saveBodyMeasure(){
     }
     return;
   }
-  const idx = cache.bodyMeasures.findIndex(x=>x.date===today());
+  const idx = cache.bodyMeasures.findIndex(x=>x.date===row.date);
   if(idx>=0) cache.bodyMeasures[idx] = data; else { cache.bodyMeasures.push(data); cache.bodyMeasures.sort((a,b)=>a.date.localeCompare(b.date)); }
   closeSheet(); refreshAll();
   toast('围度已记录 ✓');
@@ -2229,6 +2558,128 @@ function refreshAll(){
 
   renderBodyMeasures();
   renderWeekStrip();
+  renderCoachTip();
+}
+
+// ============================================================
+// 今日教练 · 离线规则引擎（基于昨日数据 + 计划）
+// 18 条规则 · 优先级 P0(命令) > P1(强建议) > P2(提示) > P3(鼓励)
+// ============================================================
+function renderCoachTip(){
+  const wrap = $('coach-tip');
+  if(!wrap) return;
+  const yes = yesterdayDate();
+  const dy = calcDay(yes);
+  const water_y = getWater(yes);
+  const sleep_y = cache.sleep.find(x=>x.date===yes);
+  const mood_y = cache.mood.find(x=>x.date===yes);
+  const exs_y = cache.exercise.filter(x=>x.date===yes);
+  const plan = profile.plan || {};
+  const calT = plan.calTarget || 1500;
+  const pT = plan.proteinG || 105;
+  const waterT = plan.waterTargetMl || 2400;
+
+  const rules = [];
+
+  // ===== P0: 阻塞性问题 =====
+  if(sleep_y && sleep_y.hours < 5.5){
+    rules.push({p:0, ico:'moon-star', tag:'睡眠', msg:`昨晚仅睡 ${sleep_y.hours}h，皮质醇升高直接拖垮减脂。今天最优先：22:30 前入睡，目标 7-8h`, why:`数据：昨日睡眠 ${sleep_y.hours}h（<5.5h 触发）`});
+  }
+  if(dy.intake>0 && dy.intake > calT * 1.3){
+    rules.push({p:0, ico:'flame', tag:'热量', msg:`昨日热量 ${Math.round(dy.intake)} kcal 严重超标 ${Math.round(dy.intake-calT)}（>30%）。今天主食减半 + 30 分钟有氧，缺口拉回 -300`, why:`数据：${Math.round(dy.intake)} / ${calT} kcal`});
+  }
+  if(cache.weights.length>=8){
+    const wkR = weeklyRate();
+    if(wkR !== null && wkR < -1.5){
+      rules.push({p:0, ico:'trending-down', tag:'减重', msg:`周减重 ${Math.abs(wkR).toFixed(1)}% 过快（>1.5%），代谢可能受损。本周提高摄入 200 kcal，多吃蛋白`, why:`数据：本周对比上周 7 日均值`});
+    }
+  }
+
+  // ===== P1: 强建议 =====
+  if(dy.intake>0 && dy.p < pT * 0.7){
+    const need = pT - Math.round(dy.p);
+    rules.push({p:1, ico:'beef', tag:'蛋白', msg:`昨日蛋白只摄入 ${Math.round(dy.p)}/${pT}g，今天三餐各加一份：早餐 2 个鸡蛋（12g）、午餐 100g 鸡胸（31g）、晚餐 150g 鱼（30g）`, why:`数据：昨日蛋白 ${Math.round(dy.p)}g 低于目标 70%`});
+  }
+  if(dy.intake>0 && dy.intake < calT * 0.6){
+    rules.push({p:1, ico:'utensils-crossed', tag:'热量', msg:`昨日只吃了 ${Math.round(dy.intake)} kcal（<目标 60%），易触发饥饿模式。今天恢复正常摄入并优先蛋白`, why:`数据：摄入 ${Math.round(dy.intake)} / 目标 ${calT} kcal`});
+  }
+  if(exs_y.length===0){
+    let consecNoEx = 0;
+    for(let i=1;i<=7;i++){
+      const d = new Date(); d.setDate(d.getDate()-i);
+      if(cache.exercise.filter(x=>x.date===fmtDate(d)).length===0) consecNoEx++;
+      else break;
+    }
+    if(consecNoEx>=3){
+      rules.push({p:1, ico:'zap', tag:'运动', msg:`已连续 ${consecNoEx} 天没运动，代谢正在下滑。今天最低做 15 分钟 HIIT 或 30 分钟快走，启动循环`, why:`数据：连续 ${consecNoEx} 天无运动记录`});
+    }
+  }
+  if(sleep_y && sleep_y.hours >= 5.5 && sleep_y.hours < 6.5){
+    rules.push({p:1, ico:'moon', tag:'睡眠', msg:`昨晚睡 ${sleep_y.hours}h 偏少，会增加 35% 食欲。今天注意控制零食 + 23:00 前入睡`, why:`数据：睡眠 ${sleep_y.hours}h（5.5-6.5h）`});
+  }
+  if(water_y < waterT * 0.5){
+    rules.push({p:1, ico:'droplets', tag:'饮水', msg:`昨日只喝了 ${(water_y/1000).toFixed(1)}L 水（目标 ${(waterT/1000).toFixed(1)}L），脂肪代谢需要充足水分。今天每 2 小时 250ml`, why:`数据：饮水 ${water_y}/${waterT} ml`});
+  }
+
+  // ===== P2: 提示 =====
+  if(dy.intake > calT * 1.05 && dy.intake <= calT * 1.3){
+    rules.push({p:2, ico:'flame', tag:'热量', msg:`昨日略超 ${Math.round(dy.intake-calT)} kcal，今天增加 20 分钟快走即可回正`, why:`数据：${Math.round(dy.intake)} / ${calT} kcal`});
+  }
+  if(exs_y.length>0 && exs_y.every(x=>x.type==='有氧')){
+    rules.push({p:2, ico:'dumbbell', tag:'力量', msg:`最近运动只做了有氧，建议加入力量训练保护肌肉量（减脂期掉肌肉是大忌）。本周至少安排 2 次力量`, why:`数据：昨日运动仅有氧`});
+  }
+  if(exs_y.length>0 && exs_y.every(x=>x.type==='力量')){
+    rules.push({p:2, ico:'footprints', tag:'有氧', msg:`昨天全是力量训练，今天可以加一次 20-30 分钟低强度有氧（快走/慢跑）促进恢复 + 创造缺口`, why:`数据：昨日运动仅力量`});
+  }
+  if(mood_y && (mood_y.label==='焦虑'||mood_y.label==='疲惫')){
+    rules.push({p:2, ico:'smile', tag:'情绪', msg:`昨天心情：${mood_y.emoji} ${mood_y.label}。压力会刺激皮质醇升高储脂，今天安排 10 分钟散步或冥想，避免暴饮暴食`, why:`数据：昨日心情=${mood_y.label}`});
+  }
+  if(water_y >= waterT * 0.5 && water_y < waterT * 0.8){
+    rules.push({p:2, ico:'droplets', tag:'饮水', msg:`昨日饮水 ${(water_y/1000).toFixed(1)}L 略不足，今天再多 ${Math.round((waterT-water_y)/250)} 杯水（每杯 250ml）即可达标`, why:`数据：${water_y}/${waterT} ml`});
+  }
+
+  // ===== P3: 鼓励/维持 =====
+  const allGood =
+    (sleep_y && sleep_y.hours >= 7) &&
+    (water_y >= waterT * 0.8) &&
+    (dy.intake > 0 && Math.abs(dy.intake - calT) < calT * 0.1) &&
+    (dy.p >= pT * 0.85) &&
+    (exs_y.length > 0);
+  if(allGood){
+    rules.push({p:3, ico:'check-circle-2', tag:'完美', msg:`昨日全项达标 🎉 睡眠 ${sleep_y.hours}h、热量精准、蛋白充足、有运动。今天保持节奏，可适当 +10% 训练量挑战自己`, why:'数据：睡眠/热量/蛋白/运动全部达标'});
+  }
+  if(rules.length===0){
+    if(dy.intake===0 && exs_y.length===0 && !sleep_y){
+      rules.push({p:3, ico:'sparkles', tag:'起步', msg:`昨日还没有任何记录。开始追踪是减脂第一步，今天试着记录早餐和一次饮水`, why:'数据：昨日无记录'});
+    } else {
+      rules.push({p:3, ico:'thumbs-up', tag:'稳定', msg:`昨日数据基本平稳，今天保持节奏。重点关注：蛋白质 ≥ ${pT}g、运动 ≥ 20min、饮水 ≥ ${(waterT*0.8/1000).toFixed(1)}L`, why:'数据：未触发任何异常规则'});
+    }
+  }
+
+  // 取优先级最高（数字最小）的规则
+  rules.sort((a,b)=>a.p-b.p);
+  const top = rules[0];
+  const colorMap = { 0:'var(--danger)', 1:'var(--yellow)', 2:'var(--blue)', 3:'var(--accent)' };
+  const tagMap = { 0:'紧急', 1:'强烈建议', 2:'提示', 3:'保持' };
+  wrap.innerHTML = `
+    <div class="flex items-start gap-3">
+      <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style="background:${colorMap[top.p]}; color:#06080B">
+        <i class="lucide lucide-${top.ico}" style="font-size:17px"></i>
+      </div>
+      <div class="flex-1">
+        <div class="flex items-center gap-2">
+          <p class="text-xs font-bold">今日教练 · ${top.tag}</p>
+          <span class="pill" style="background:${colorMap[top.p]}33; color:${colorMap[top.p]}; padding:1px 6px; font-size:9px">${tagMap[top.p]}</span>
+        </div>
+        <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">${top.msg}</p>
+        <p class="text-[10px] text-slate-500 mt-2"><i class="lucide lucide-info" style="font-size:10px; vertical-align:-1px"></i> ${top.why}</p>
+      </div>
+    </div>
+  `;
+}
+function yesterdayDate(){
+  const d = new Date(); d.setDate(d.getDate()-1);
+  return fmtDate(d);
 }
 
 function renderBodyMeasures(){
@@ -2517,9 +2968,34 @@ function formatDateLabel(d){
 }
 
 // ============================================================
+// Lucide SVG 图标自动注入（兜底字体加载失败）
+// 把 <i class="lucide lucide-xxx"> 转成 inline SVG
+// ============================================================
+function renderIcons(root){
+  if(typeof lucide === 'undefined') return;
+  root = root || document;
+  root.querySelectorAll('i.lucide:not([data-lucide-rendered])').forEach(el => {
+    const cls = [...el.classList].find(c => c.startsWith('lucide-') && c !== 'lucide');
+    if(!cls) return;
+    const name = cls.replace('lucide-', '');
+    el.setAttribute('data-lucide', name);
+    el.setAttribute('data-lucide-rendered', '1');
+  });
+  try { lucide.createIcons({ attrs: { 'stroke-width': 2 } }); } catch(e){ console.warn('lucide error', e); }
+}
+// 监听 DOM 变化自动注入（节流，避免高频触发）
+let iconRenderT = null;
+const iconObserver = new MutationObserver(() => {
+  if(iconRenderT) return;
+  iconRenderT = setTimeout(()=>{ iconRenderT = null; renderIcons(); }, 100);
+});
+iconObserver.observe(document.body, { childList:true, subtree:true });
+
+// ============================================================
 // 启动
 // ============================================================
 boot();
+renderIcons();
 
 // PWA
 if('serviceWorker' in navigator){

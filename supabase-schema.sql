@@ -196,3 +196,29 @@ alter table public.body_measures enable row level security;
 drop policy if exists "body_measures_owner_all" on public.body_measures;
 create policy "body_measures_owner_all" on public.body_measures
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ============================================================
+-- v6 追加：力量训练详细记录（含动作、组数、次数、重量、PR）
+-- ============================================================
+create table if not exists public.strength_records (
+  id bigserial primary key,
+  user_id uuid not null references auth.users on delete cascade,
+  date date not null,
+  body_part text,         -- chest/back/shoulder/leg/glute/arm/core
+  exercise_id text,       -- 对应前端动作库 id，如 'bench_press'
+  exercise_name text,
+  sets int default 1,
+  reps int default 8,
+  weight numeric default 0,    -- kg；自重动作填 0
+  rest_sec int default 90,
+  cal numeric,
+  time text,
+  note text,
+  created_at timestamptz default now()
+);
+create index if not exists idx_strength_user_date on public.strength_records (user_id, date desc);
+create index if not exists idx_strength_user_exercise on public.strength_records (user_id, exercise_id);
+alter table public.strength_records enable row level security;
+drop policy if exists "strength_records_owner_all" on public.strength_records;
+create policy "strength_records_owner_all" on public.strength_records
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
