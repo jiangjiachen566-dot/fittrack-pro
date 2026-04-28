@@ -1801,27 +1801,46 @@ function sheetTemplate(type, payload){
         </div>
       </div>
       <input type="hidden" id="food-idx" value="${payload}">
-      <button id="food-add-btn" class="btn-primary mt-4" onclick="addFood(parseInt($('food-idx').value), parseFloat($('food-qty').value))">+ 添加到 ${({breakfast:'早餐',lunch:'午餐',dinner:'晚餐',snack:'加餐'})[document.querySelector('#meal-seg button.on').dataset.meal]}</button>
+      <input type="hidden" id="food-meal" value="${document.querySelector('#meal-seg button.on')?.dataset.meal || 'breakfast'}">
+      <input type="hidden" id="food-date" value="${(document.getElementById('f-date')?.value) || today()}">
+      <button id="food-add-btn" class="btn-primary mt-4" onclick="addFood(parseInt($('food-idx').value), parseFloat($('food-qty').value))">+ 添加到 ${({breakfast:'早餐',lunch:'午餐',dinner:'晚餐',snack:'加餐'})[document.querySelector('#meal-seg button.on')?.dataset.meal || 'breakfast']}</button>
       <button class="btn-ghost mt-2" onclick="openSheet('food')">返回列表</button>
     `;
   }
 
-  if(type==='custom-food') return `
+  if(type==='custom-food'){
+    const editing = payload || null; // 复用：传入则为编辑（这里仅新建）
+    return `
     <h3 class="text-lg font-black text-center">自定义食物</h3>
-    <p class="text-[11px] text-slate-400 text-center mt-1">每 100g / 每份 营养信息</p>
-    <p class="text-[11px] text-slate-400 mt-4 mb-1">名称</p>
-    <input class="input" id="cf-name" placeholder="例如：自制鸡蛋羹">
-    <p class="text-[11px] text-slate-400 mt-3 mb-1">Emoji（可选）</p>
-    <input class="input" id="cf-emoji" placeholder="🍳" maxlength="2">
+    <p class="text-[11px] text-slate-400 text-center mt-1">填写「每份」营养信息，份量在添加时再调</p>
+    <div class="grid grid-cols-3 gap-3 mt-3">
+      <div class="col-span-2">
+        <p class="text-[11px] text-slate-400 mb-1">名称</p>
+        <input class="input" id="cf-name" placeholder="自制鸡蛋羹">
+      </div>
+      <div>
+        <p class="text-[11px] text-slate-400 mb-1">Emoji</p>
+        <input class="input" id="cf-emoji" placeholder="🍳" maxlength="2" style="text-align:center; font-size:18px">
+      </div>
+    </div>
     <div class="grid grid-cols-2 gap-3 mt-3">
-      <div><p class="text-[11px] text-slate-400 mb-1">热量 kcal</p><input class="input" id="cf-cal" type="number" placeholder="100"></div>
+      <div>
+        <p class="text-[11px] text-slate-400 mb-1">单份克数 g</p>
+        <input class="input" id="cf-grams" type="number" min="1" placeholder="100" value="100">
+      </div>
+      <div>
+        <p class="text-[11px] text-slate-400 mb-1">单份热量 kcal</p>
+        <input class="input" id="cf-cal" type="number" min="1" placeholder="100">
+      </div>
       <div><p class="text-[11px] text-slate-400 mb-1">蛋白质 g</p><input class="input" id="cf-p" type="number" step="0.1" placeholder="10"></div>
       <div><p class="text-[11px] text-slate-400 mb-1">碳水 g</p><input class="input" id="cf-c" type="number" step="0.1" placeholder="5"></div>
       <div><p class="text-[11px] text-slate-400 mb-1">脂肪 g</p><input class="input" id="cf-f" type="number" step="0.1" placeholder="3"></div>
     </div>
+    <p class="text-[10px] text-slate-500 mt-2">小贴士：食品包装上一般有"每 100g"或"每份"的营养表，把那一份的数据填进去就行</p>
     <button class="btn-primary mt-4" onclick="saveCustomFood()">保存到食物库</button>
     <button class="btn-ghost mt-2" onclick="openSheet('food')">取消</button>
   `;
+  }
 
   if(type==='exercise'){
     // 三类型 Tab：cardio（有氧）/ strength（力量）/ flexibility（柔韧）
@@ -3762,8 +3781,12 @@ async function addComboToMeal(comboId){
 // 自定义食物
 // ============================================================
 async function saveCustomFood(){
+  const baseName = $('cf-name').value.trim();
+  const grams = parseInt($('cf-grams').value)||0;
+  // 把克数烤进名字（如"鸡蛋羹 100g"），后续 addFood 走通用正则识别 baseG
+  const fullName = baseName + (grams>0 ? ' '+grams+'g' : '');
   const f = {
-    name: $('cf-name').value.trim(),
+    name: fullName,
     emoji: $('cf-emoji').value || '🍽',
     cal: parseFloat($('cf-cal').value),
     p: parseFloat($('cf-p').value)||0,
@@ -3771,12 +3794,13 @@ async function saveCustomFood(){
     f: parseFloat($('cf-f').value)||0,
     user_id: session.user.id
   };
-  if(!f.name){ toast('请输入名称','error'); return; }
+  if(!baseName){ toast('请输入名称','error'); return; }
   if(!f.cal || f.cal<=0){ toast('热量必填','error'); return; }
+  if(grams<=0){ toast('单份克数必填','error'); return; }
   const { data, error } = await sb.from('custom_foods').insert(f).select().single();
   if(error){ toast(error.message,'error'); return; }
   cache.customFoods.push(data);
-  toast('已加入食物库 ✓');
+  toast(`已加入食物库：${baseName} ${grams}g`);
   openSheet('food');
   setTimeout(()=>switchFoodTab('custom'), 100);
 }
@@ -3841,7 +3865,7 @@ function qPreview(){
     const baseG = gMatch ? parseFloat(gMatch[1]) : null;
     const grams = baseG ? Math.round(baseG*q) : null;
     const unit = gMatch && gMatch[0].toLowerCase().includes('ml') ? 'ml' : 'g';
-    const meal = ({breakfast:'早餐',lunch:'午餐',dinner:'晚餐',snack:'加餐'})[document.querySelector('#meal-seg button.on').dataset.meal];
+    const meal = ({breakfast:'早餐',lunch:'午餐',dinner:'晚餐',snack:'加餐'})[($('food-meal')?.value) || 'breakfast'];
     const cleanName = item.name.replace(/\s*\d+(?:\.\d+)?\s*(g|ml).*$/i,'');
     btn.textContent = `+ ${cleanName}${grams?' '+grams+unit:' ×'+q} · ${cal}kcal → ${meal}`;
   }
@@ -3913,11 +3937,13 @@ async function addFood(idx, qty){
     return;
   }
 
-  const meal = document.querySelector('#meal-seg button.on').dataset.meal;
+  // v15.5 修：从 food-detail 模板烤入的 hidden input 取 meal/date（兜底原 sheet 已被清空）
+  const meal = ($('food-meal')?.value) || document.querySelector('#meal-seg button.on')?.dataset.meal || 'breakfast';
+  const dateStr = ($('food-date')?.value) || (document.getElementById('f-date')?.value) || today();
   const now = new Date();
   const tm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   const row = {
-    user_id: session.user.id, date: getSheetDate('f-date'), meal,
+    user_id: session.user.id, date: dateStr, meal,
     name: item.name, emoji: item.emoji, qty,
     cal: Math.round(item.cal * qty),
     p: +(item.p * qty).toFixed(1), c: +(item.c * qty).toFixed(1), f: +(item.f * qty).toFixed(1),
