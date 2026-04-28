@@ -3978,14 +3978,23 @@ async function addFood(idx, qty){
   };
   if(grams !== null) row.grams = grams;
   let { data, error } = await sb.from('food_records').insert(row).select().single();
-  // 若 grams 列还没建，回退去掉重试
-  if(error && error.message && error.message.includes("'grams'")){
-    delete row.grams;
-    ({ data, error } = await sb.from('food_records').insert(row).select().single());
+  // 若 grams 列还没建，去掉 grams 重试（兼容多种错误措辞）
+  if(error){
+    const msg = (error.message||'') + ' ' + (error.hint||'') + ' ' + (error.details||'');
+    if(/grams/i.test(msg) || error.code === '42703' || error.code === 'PGRST204'){
+      delete row.grams;
+      ({ data, error } = await sb.from('food_records').insert(row).select().single());
+    }
   }
-  if(error){ toast(error.message,'error'); return; }
+  if(error){ toast('保存失败：'+error.message,'error'); console.error(error); return; }
   cache.food.push(data);
-  closeSheet(); refreshAll(); checkAchievements();
+  closeSheet();
+  refreshAll();
+  // 如果当前在打卡页饮食 Tab，也立即刷新记录列表
+  if(typeof currentCat === 'function' && currentCat()==='food'){
+    renderRecordList('food');
+  }
+  checkAchievements();
   const gramsStr = grams ? ` · ${grams}g` : (qty!==1 ? ' ×'+qty : '');
   toast(`+ ${item.name}${gramsStr} (${row.cal}kcal) ✓`);
 }
