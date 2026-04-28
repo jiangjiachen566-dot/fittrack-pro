@@ -2603,7 +2603,6 @@ function refreshAll(){
   $('bar-exercise').style.width = Math.min(100, d.exCal/Math.max(1,exT)*100) + '%';
 
   // 进度环：基于计划起止日期
-  $('plan-name-pill').textContent = plan.name || '减脂计划';
   let planPct = 0, dayCur = 0, dayTotal = 0;
   if(plan.startDate && plan.endDate){
     const ms = new Date(plan.endDate) - new Date(plan.startDate);
