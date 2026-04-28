@@ -1301,7 +1301,8 @@ function sheetTemplate(type, payload){
         {t:'water', n:'饮水', i:'droplets', bg:'rgba(91,157,255,.15)', c:'var(--blue)'},
         {t:'body-measure', n:'围度', i:'ruler', bg:'rgba(180,120,255,.15)', c:'#B478FF'},
         {t:'sleep', n:'睡眠', i:'moon-star', bg:'rgba(255,200,61,.15)', c:'var(--yellow)'},
-        {t:'mood', n:'情绪', i:'smile', bg:'rgba(255,77,109,.15)', c:'#FF4D6D'}
+        {t:'mood', n:'情绪', i:'smile', bg:'rgba(255,77,109,.15)', c:'#FF4D6D'},
+        {t:'user-status', n:'切换状态', i:'compass', bg:'rgba(34,211,167,.15)', c:'var(--accent)'}
       ].map(b=>`
         <div class="quick-btn" onclick="openSheet('${b.t}')">
           <div class="meal-icon" style="background:${b.bg}; color:${b.c}; width:46px; height:46px; border-radius:14px"><i class="lucide lucide-${b.i}" style="font-size:20px"></i></div>
@@ -2589,7 +2590,7 @@ function refreshAll(){
   const so = currentStatusObj();
   $('status-pill').className = 'pill';
   $('status-pill').setAttribute('style', `background:${so.bg}; color:${so.color}; cursor:pointer`);
-  $('status-pill').innerHTML = `<i class="lucide lucide-${so.icon}" style="font-size:11px"></i>${so.name}`;
+  $('status-pill').innerHTML = `<i class="lucide lucide-${so.icon}" style="font-size:11px"></i>${so.name}<i class="lucide lucide-chevron-down" style="font-size:11px;opacity:.7;margin-left:2px"></i>`;
   $('plan-name-line').textContent = (plan.name || '减脂计划');
 
   const calT = effectiveCalTarget();
