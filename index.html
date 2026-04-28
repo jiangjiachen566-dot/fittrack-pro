@@ -83,15 +83,12 @@
   .tab-item i{ font-size:19px; }
   .tab-item.active{ color:var(--primary); }
   .tab-item:active{ transform:scale(.92); }
-  .fab{ position:absolute; bottom:38px; left:50%; transform:translateX(-50%);
-    width:60px; height:60px; border-radius:20px;
-    background:linear-gradient(135deg,#FF7A45,#FF4D6D);
-    box-shadow:0 12px 28px -6px rgba(255,122,69,.75), 0 0 0 5px rgba(11,15,20,.95), inset 0 1px 0 rgba(255,255,255,.25);
-    display:flex; align-items:center; justify-content:center; color:white;
-    z-index:45; cursor:pointer; border:none; transition:transform .2s, box-shadow .2s; }
-  .fab:hover{ box-shadow:0 16px 32px -6px rgba(255,122,69,.9), 0 0 0 5px rgba(11,15,20,.95); }
-  .fab:active{ transform:translateX(-50%) scale(.9); }
-  .fab i{ font-size:28px; stroke-width:2.5; }
+  /* v15.2: 训练 tab 视觉强化（取代 FAB 中心按钮） */
+  .tab-item.tab-cta{ position:relative; }
+  .tab-item.tab-cta::before{ content:''; position:absolute; top:2px; left:50%; transform:translateX(-50%); width:36px; height:36px; border-radius:12px; background:linear-gradient(135deg, rgba(255,122,69,.20), rgba(255,77,109,.14)); border:1px solid rgba(255,122,69,.30); z-index:-1; }
+  .tab-item.tab-cta i{ color:var(--primary); }
+  .tab-item.tab-cta.active::before{ background:linear-gradient(135deg, rgba(255,122,69,.42), rgba(255,77,109,.30)); box-shadow:0 4px 14px rgba(255,122,69,.45); }
+  .tab-item.tab-cta.active i{ color:#fff; }
   .pill{ display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px; font-size:10px; font-weight:600; }
   .seg{ display:flex; background:rgba(255,255,255,.05); border-radius:11px; padding:3px; }
   .seg button{ flex:1; padding:6px 0; border-radius:8px; font-size:11px; font-weight:600; color:var(--muted); border:none; background:transparent; cursor:pointer; transition:all .2s; }
@@ -393,11 +390,11 @@
         <div class="card mt-3 p-3 flex justify-between" id="week-strip"></div>
       </div>
 
-      <!-- 今日数据（展示当日最新，无入口，记录走 FAB） -->
+      <!-- 今日数据：v15.2 改造为可点击记录入口 -->
       <div class="mt-5">
-        <h3 class="font-bold text-sm mb-3">今日数据</h3>
+        <h3 class="font-bold text-sm mb-3 flex items-center gap-2"><i class="lucide lucide-zap" style="color:var(--primary); font-size:14px"></i>今日数据 · 点击记录</h3>
         <div class="grid grid-cols-2 gap-3">
-          <div class="card p-4">
+          <div class="card p-4" style="cursor:pointer" onclick="openSheet('weight')">
             <div class="flex items-center justify-between">
               <div class="meal-icon" style="background:rgba(255,107,139,.15); color:var(--pink)"><i class="lucide lucide-scale"></i></div>
               <span class="text-[10px] text-slate-500" id="card-weight-time">--</span>
@@ -406,7 +403,7 @@
             <p class="text-xl font-black mt-0.5 number-tabular"><span id="card-weight">--</span><span class="text-xs text-slate-400 font-normal">kg</span></p>
             <p class="text-[10px]" style="color:var(--muted)" id="card-weight-trend">— 待记录</p>
           </div>
-          <div class="card p-4">
+          <div class="card p-4" style="cursor:pointer" onclick="openSheet('food')">
             <div class="flex items-center justify-between">
               <div class="meal-icon" style="background:rgba(255,122,69,.15); color:var(--primary)"><i class="lucide lucide-utensils"></i></div>
               <span class="text-[10px] text-slate-500"><span id="card-food-count">0</span> 餐</span>
@@ -415,16 +412,16 @@
             <p class="text-xl font-black mt-0.5 number-tabular"><span id="card-food">0</span><span class="text-xs text-slate-400 font-normal">kcal</span></p>
             <p class="text-[10px] text-slate-400" id="card-food-last">尚未记录</p>
           </div>
-          <div class="card p-4">
+          <div class="card p-4" style="cursor:pointer" onclick="goToTrainingTab()">
             <div class="flex items-center justify-between">
               <div class="meal-icon" style="background:rgba(34,211,167,.15); color:var(--accent)"><i class="lucide lucide-dumbbell"></i></div>
               <span class="text-[10px] text-slate-500" id="card-ex-count">0 次</span>
             </div>
-            <p class="text-[11px] text-slate-400 mt-3">运动</p>
+            <p class="text-[11px] text-slate-400 mt-3">训练</p>
             <p class="text-xl font-black mt-0.5 number-tabular"><span id="card-ex-min">0</span><span class="text-xs text-slate-400 font-normal">min</span></p>
-            <p class="text-[10px] text-slate-400" id="card-ex-tags">今日未运动</p>
+            <p class="text-[10px] text-slate-400" id="card-ex-tags">今日未训练</p>
           </div>
-          <div class="card p-4">
+          <div class="card p-4" style="cursor:pointer" onclick="openSheet('water')">
             <div class="flex items-center justify-between">
               <div class="meal-icon" style="background:rgba(91,157,255,.15); color:var(--blue)"><i class="lucide lucide-droplets"></i></div>
               <span class="text-[10px] text-slate-500" id="card-water-pct">0%</span>
@@ -434,7 +431,26 @@
             <p class="text-[10px] text-slate-400">目标 <span id="card-water-target">2.4</span> L</p>
           </div>
         </div>
-        <p class="text-[10px] text-slate-500 text-center mt-4">点底部 + 号快速记录</p>
+
+        <!-- 更多记录入口 -->
+        <div class="grid grid-cols-4 gap-2 mt-3">
+          <div class="quick-btn" style="padding:10px 4px" onclick="openSheet('body-measure')">
+            <div class="meal-icon" style="background:rgba(180,120,255,.15); color:#B478FF; width:36px; height:36px"><i class="lucide lucide-ruler" style="font-size:15px"></i></div>
+            <span class="text-[10px] font-semibold">围度</span>
+          </div>
+          <div class="quick-btn" style="padding:10px 4px" onclick="openSheet('sleep')">
+            <div class="meal-icon" style="background:rgba(255,200,61,.15); color:var(--yellow); width:36px; height:36px"><i class="lucide lucide-moon-star" style="font-size:15px"></i></div>
+            <span class="text-[10px] font-semibold">睡眠</span>
+          </div>
+          <div class="quick-btn" style="padding:10px 4px" onclick="openSheet('mood')">
+            <div class="meal-icon" style="background:rgba(255,77,109,.15); color:#FF4D6D; width:36px; height:36px"><i class="lucide lucide-smile" style="font-size:15px"></i></div>
+            <span class="text-[10px] font-semibold">情绪</span>
+          </div>
+          <div class="quick-btn" style="padding:10px 4px" onclick="openSheet('user-status')">
+            <div class="meal-icon" style="background:rgba(34,211,167,.15); color:var(--accent); width:36px; height:36px"><i class="lucide lucide-compass" style="font-size:15px"></i></div>
+            <span class="text-[10px] font-semibold">状态</span>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -891,16 +907,14 @@
     </div>
   </div>
 
-  <!-- 底部 TabBar (v15: 6 项) -->
+  <!-- 底部 TabBar (v15.2: 5 项平铺，FAB 已废弃) -->
   <div class="tabbar" id="tabbar" style="display:none">
     <button class="tab-item active" data-tab="home"><i class="lucide lucide-home"></i><span>首页</span></button>
     <button class="tab-item" data-tab="data"><i class="lucide lucide-bar-chart-3"></i><span>数据</span></button>
-    <button class="tab-item" data-tab="training"><i class="lucide lucide-dumbbell"></i><span>训练</span></button>
-    <div style="width:54px"></div>
+    <button class="tab-item tab-cta" data-tab="training"><i class="lucide lucide-dumbbell"></i><span>训练</span></button>
     <button class="tab-item" data-tab="plan"><i class="lucide lucide-clipboard-list"></i><span>打卡</span></button>
     <button class="tab-item" data-tab="me"><i class="lucide lucide-user"></i><span>我的</span></button>
   </div>
-  <button class="fab" id="fab" onclick="openSheet('quick')" style="display:none"><i class="lucide lucide-plus"></i></button>
 
   <!-- 弹层 -->
   <div class="sheet-mask" id="mask" onclick="closeSheet()"></div>
@@ -1077,7 +1091,7 @@ function showApp(){
   $('onboarding').classList.remove('show');
   $('boot').style.display = 'none';
   $('tabbar').style.display = 'flex';
-  $('fab').style.display = 'flex';
+  if($('fab')) $('fab').style.display = 'flex';
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   $('screen-home').classList.add('active');
   document.querySelectorAll('.tab-item').forEach(t=>t.classList.toggle('active', t.dataset.tab==='home'));
@@ -1090,7 +1104,7 @@ let authState = { mode:'login' };  // login | register
 function showAuth(){
   $('auth').classList.add('show');
   $('tabbar').style.display = 'none';
-  $('fab').style.display = 'none';
+  if($('fab')) $('fab').style.display = 'none';
   renderAuth();
 }
 function renderAuth(){
@@ -1220,7 +1234,7 @@ function showOnboarding(){
   $('auth').classList.remove('show');
   $('boot').style.display = 'none';
   $('tabbar').style.display = 'none';
-  $('fab').style.display = 'none';
+  if($('fab')) $('fab').style.display = 'none';
   $('onboarding').classList.add('show');
   if(profile){
     onbState.gender = profile.gender || 'male';
@@ -1499,7 +1513,7 @@ document.querySelectorAll('.tab-item').forEach(t=>{
     if(tab==='plan') renderRecordList(currentCat());
     if(tab==='training') setTimeout(renderTrainingPage, 50);
     // v15: 训练 tab 隐藏 FAB（避免遮挡 + 训练 tab 已有大按钮）
-    $('fab').style.display = (tab==='training') ? 'none' : '';
+    if($('fab')) $('fab').style.display = (tab==='training') ? 'none' : '';
   });
 });
 document.addEventListener('click',(e)=>{
@@ -3052,6 +3066,12 @@ function openStartWorkoutSheet(){
   openSheet('start-workout');
 }
 
+// 从首页「训练」卡片或其它地方跳到训练 tab
+function goToTrainingTab(){
+  const btn = document.querySelector('.tab-item[data-tab="training"]');
+  if(btn) btn.click();
+}
+
 // ===== 选模板/自由训练后启动 session =====
 async function startWorkout(source){
   // source = { type:'free' } | { type:'template', tplId } | { type:'repeat' }
@@ -3130,7 +3150,7 @@ function enterWorkoutScreen(){
   $('screen-workout').classList.add('active');
   // 隐藏 tabbar 和 fab
   $('tabbar').style.display = 'none';
-  $('fab').style.display = 'none';
+  if($('fab')) $('fab').style.display = 'none';
   $('wk-template-name').textContent = workoutSession.templateName;
   startWorkoutTimer();
   renderWorkoutScreen();
@@ -3496,7 +3516,7 @@ function closeSummary(){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   $('screen-training').classList.add('active');
   $('tabbar').style.display = '';
-  $('fab').style.display = '';
+  if($('fab')) $('fab').style.display = '';
   document.querySelectorAll('.tab-item').forEach(t=>t.classList.toggle('active', t.dataset.tab==='training'));
   refreshAll();
   setTimeout(renderTrainingPage, 80);
