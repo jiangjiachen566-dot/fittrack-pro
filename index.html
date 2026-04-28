@@ -552,6 +552,19 @@
         </div>
       </div>
 
+      <!-- v14: 顶层模式切换：打卡记录 / 训记 -->
+      <div class="seg mt-3" id="plan-mode-seg" style="background:rgba(255,255,255,.04); padding:3px;">
+        <button class="on" data-mode="punch" onclick="switchPlanMode('punch')">
+          <i class="lucide lucide-clipboard-list" style="font-size:13px; margin-right:4px"></i>打卡记录
+        </button>
+        <button data-mode="training" onclick="switchPlanMode('training')">
+          <i class="lucide lucide-dumbbell" style="font-size:13px; margin-right:4px"></i>训记
+        </button>
+      </div>
+
+      <!-- 模式 1：打卡记录（原内容） -->
+      <div id="plan-punch-area">
+
       <!-- 营养总览 -->
       <div class="card mt-4 p-4">
         <div class="flex items-center justify-between">
@@ -599,6 +612,75 @@
           <button class="flex-1 py-2 rounded-lg text-xs font-semibold" style="background:rgba(91,157,255,.15); color:var(--blue); border:none; cursor:pointer" onclick="addWater(500)">+ 500ml</button>
         </div>
       </div>
+
+      </div><!-- /plan-punch-area -->
+
+      <!-- 模式 2：训记（v14 新增） -->
+      <div id="plan-training-area" style="display:none">
+
+        <!-- 概览卡 -->
+        <div class="card mt-4 p-4 grad-bg">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-[11px] text-slate-400">最近 30 天训记</p>
+              <p class="text-2xl font-black mt-0.5 number-tabular"><span id="tr-days">0</span><span class="text-xs text-slate-400 font-normal"> 天</span></p>
+            </div>
+            <span class="pill" style="background:rgba(255,122,69,.15); color:var(--primary)">PR <span id="tr-pr-30d">0</span> 次</span>
+          </div>
+          <div class="grid grid-cols-3 gap-3 mt-4">
+            <div>
+              <p class="text-[10px] text-slate-400">总组数</p>
+              <p class="text-lg font-black number-tabular" id="tr-sets">0</p>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400">总训练量</p>
+              <p class="text-lg font-black number-tabular" id="tr-vol">0<span class="text-[10px] text-slate-400 font-normal">k</span></p>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400">总时长</p>
+              <p class="text-lg font-black number-tabular" id="tr-min">0<span class="text-[10px] text-slate-400 font-normal">h</span></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 训练热力图（最近 12 周） -->
+        <div class="card mt-3 p-4">
+          <div class="flex items-center justify-between mb-3">
+            <span class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-calendar-days" style="color:var(--primary); font-size:14px"></i>训练频率（近 12 周）</span>
+            <span class="text-[10px] text-slate-400" id="tr-heatmap-legend">少 → 多</span>
+          </div>
+          <div id="tr-heatmap"></div>
+        </div>
+
+        <!-- 部位分布雷达图 -->
+        <div class="card mt-3 p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-target" style="color:var(--accent); font-size:14px"></i>部位训练量分布</span>
+            <span class="text-[10px] text-slate-400">近 30 天</span>
+          </div>
+          <div style="height:200px"><canvas id="tr-radar"></canvas></div>
+        </div>
+
+        <!-- 主项 PR 趋势 -->
+        <div class="card mt-3 p-4">
+          <div class="flex items-center justify-between mb-2">
+            <span class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-trending-up" style="color:var(--primary); font-size:14px"></i>主项 PR 进步</span>
+            <select id="tr-pr-select" onchange="renderTrainingPRChart()" style="background:rgba(255,255,255,.05); border:none; color:#e8eaed; font-size:11px; padding:4px 8px; border-radius:6px; outline:none"></select>
+          </div>
+          <div style="height:160px"><canvas id="tr-pr-chart"></canvas></div>
+        </div>
+
+        <!-- 训练历史列表 -->
+        <div class="card mt-3 p-4">
+          <div class="flex items-center justify-between mb-3">
+            <span class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-list" style="color:var(--blue); font-size:14px"></i>训练历史</span>
+            <span class="text-[10px] text-slate-400" id="tr-history-count">--</span>
+          </div>
+          <div id="tr-history-list" class="space-y-2"></div>
+        </div>
+
+      </div><!-- /plan-training-area -->
+
     </div>
   </div>
 
@@ -743,8 +825,10 @@ let session = null;
 let profile = null;          // profiles 行
 let cache = {                // 内存缓存所有用户数据
   weights:[], food:[], exercise:[], water:[], sleep:[], mood:[],
-  customFoods:[], achievements:[], bodyMeasures:[], strength:[], userStatus:[],
-  favoriteFoods:[], mealCombos:[]
+  customFoods:[], achievements:[], bodyMeasures:[], userStatus:[],
+  favoriteFoods:[], mealCombos:[],
+  // v14 训记三层
+  workouts:[], workoutExercises:[], workoutSets:[]
 };
 
 // ========== 用户状态定义 ==========
@@ -845,7 +929,7 @@ async function loadProfile(){
 
 async function loadAll(){
   const uid = session.user.id;
-  const [w,f,e,wt,sl,md,cf,ach,bm,st,us,fav,mc] = await Promise.all([
+  const [w,f,e,wt,sl,md,cf,ach,bm,wk,wex,wst,us,fav,mc] = await Promise.all([
     sb.from('weights').select('*').eq('user_id',uid).order('date'),
     sb.from('food_records').select('*').eq('user_id',uid).order('date'),
     sb.from('exercise_records').select('*').eq('user_id',uid).order('date'),
@@ -855,7 +939,10 @@ async function loadAll(){
     sb.from('custom_foods').select('*').eq('user_id',uid),
     sb.from('achievements').select('*').eq('user_id',uid),
     sb.from('body_measures').select('*').eq('user_id',uid).order('date'),
-    sb.from('strength_records').select('*').eq('user_id',uid).order('date'),
+    // v14: 训记三层表替代旧 strength_records
+    sb.from('workouts').select('*').eq('user_id',uid).order('date',{ascending:false}),
+    sb.from('workout_exercises').select('*').eq('user_id',uid).order('ord'),
+    sb.from('workout_sets').select('*').eq('user_id',uid).order('set_no'),
     sb.from('user_status').select('*').eq('user_id',uid).order('start_date', {ascending:false}),
     sb.from('favorite_foods').select('*').eq('user_id',uid),
     sb.from('meal_combos').select('*').eq('user_id',uid).order('created_at', {ascending:false})
@@ -869,7 +956,10 @@ async function loadAll(){
   cache.customFoods = cf.data || [];
   cache.achievements = ach.data || [];
   cache.bodyMeasures = bm.data || [];
-  cache.strength = st.data || [];
+  // v14 训记
+  cache.workouts = (wk && !wk.error) ? (wk.data || []) : [];
+  cache.workoutExercises = (wex && !wex.error) ? (wex.data || []) : [];
+  cache.workoutSets = (wst && !wst.error) ? (wst.data || []) : [];
   cache.userStatus = us.data || [];
   // 新表可能未建：失败时静默用空数组（避免阻塞整个加载）
   cache.favoriteFoods = (fav && !fav.error) ? (fav.data || []) : [];
@@ -2061,66 +2151,104 @@ const FLEX_TYPES = [
 // 力量动作库：7 部位 × 5-8 动作。met 按动作强度（compound 6.0 / isolation 4.5 / bodyweight 4.0）
 const STRENGTH_LIBRARY = {
   chest: { name:'胸', icon:'shield', items:[
-    {id:'bench_press', name:'杠铃卧推', met:6.0, equip:'杠铃'},
-    {id:'db_bench', name:'哑铃卧推', met:5.5, equip:'哑铃'},
-    {id:'incline_bench', name:'上斜卧推', met:6.0, equip:'杠铃'},
-    {id:'db_fly', name:'哑铃飞鸟', met:4.5, equip:'哑铃'},
-    {id:'pushup', name:'俯卧撑', met:4.0, equip:'自重'},
-    {id:'dip', name:'双杠臂屈伸', met:6.5, equip:'自重/负重'},
-    {id:'cable_fly', name:'绳索夹胸', met:4.5, equip:'绳索'}
+    {id:'bench_press', name:'杠铃卧推', met:6.0, equip:'杠铃', aliases:['杠铃卧推'], hot:16},
+    {id:'incline_bench_bb', name:'上斜杠铃卧推', met:6.0, equip:'杠铃', aliases:['上斜杠铃卧推','上斜卧推'], hot:11},
+    {id:'cable_fly', name:'绳索十字夹胸', met:4.5, equip:'绳索', aliases:['绳索十字夹胸','绳索夹胸'], hot:11},
+    {id:'machine_press', name:'器械推胸', met:5.5, equip:'器械', aliases:['器械推胸','器械推胸（版本4）'], hot:7},
+    {id:'aslan_db_press', name:'阿斯兰哑铃练胸', met:5.5, equip:'哑铃', aliases:['阿斯兰哑铃练胸'], hot:4},
+    {id:'incline_bench_db', name:'上斜哑铃卧推', met:6.0, equip:'哑铃', aliases:['上斜哑铃卧推'], hot:1},
+    {id:'db_bench', name:'哑铃卧推', met:5.5, equip:'哑铃', aliases:['哑铃卧推'], hot:0},
+    {id:'db_fly', name:'哑铃飞鸟', met:4.5, equip:'哑铃', aliases:['哑铃飞鸟'], hot:0},
+    {id:'machine_fly', name:'器械飞鸟', met:4.5, equip:'器械', aliases:['器械飞鸟'], hot:2},
+    {id:'close_grip_bench', name:'窄距卧推', met:6.0, equip:'杠铃', aliases:['窄距卧推(靠近式)','窄距卧推'], hot:1},
+    {id:'pushup', name:'俯卧撑', met:4.0, equip:'自重', aliases:['俯卧撑'], hot:0},
+    {id:'dip_chest', name:'双杠臂屈伸（胸）', met:6.5, equip:'自重/负重', aliases:['双杠臂屈伸'], hot:2},
   ]},
   back: { name:'背', icon:'square', items:[
-    {id:'deadlift', name:'硬拉', met:7.5, equip:'杠铃'},
-    {id:'pullup', name:'引体向上', met:6.5, equip:'自重'},
-    {id:'lat_pulldown', name:'高位下拉', met:5.0, equip:'器械'},
-    {id:'barbell_row', name:'杠铃划船', met:6.0, equip:'杠铃'},
-    {id:'db_row', name:'哑铃划船', met:5.5, equip:'哑铃'},
-    {id:'seated_row', name:'坐姿划船', met:5.0, equip:'器械'},
-    {id:'face_pull', name:'面拉', met:4.5, equip:'绳索'}
+    {id:'wide_grip_pulldown', name:'宽距下拉', met:5.0, equip:'器械', aliases:['宽距下拉'], hot:9},
+    {id:'hammer_row_v1', name:'悍马机划船(v1)', met:5.5, equip:'器械', aliases:['悍马机划船(v1)','悍马机划船'], hot:7},
+    {id:'pullup_assist', name:'引体向上（辅助）', met:5.5, equip:'器械', aliases:['引体向上（辅助）'], hot:7},
+    {id:'db_row', name:'哑铃划船', met:5.5, equip:'哑铃', aliases:['哑铃划船'], hot:5},
+    {id:'seated_row', name:'坐姿划船', met:5.0, equip:'器械', aliases:['坐姿划船'], hot:5},
+    {id:'vbar_pulldown', name:'V-bar下拉', met:5.0, equip:'绳索', aliases:['V-bar下拉'], hot:4},
+    {id:'machine_row', name:'器械划船', met:5.0, equip:'器械', aliases:['器械划船1','器械划船'], hot:2},
+    {id:'reverse_bb_row', name:'反手杠铃划船', met:6.0, equip:'杠铃', aliases:['反手杠铃划船'], hot:2},
+    {id:'machine_pulldown', name:'器械下拉', met:5.0, equip:'器械', aliases:['器械下拉','器械下拉（版本2）'], hot:3},
+    {id:'deadlift', name:'硬拉', met:7.5, equip:'杠铃', aliases:['硬拉'], hot:2},
+    {id:'half_deadlift', name:'半程硬拉', met:7.0, equip:'杠铃', aliases:['半程硬拉'], hot:1},
+    {id:'pullup', name:'引体向上', met:6.5, equip:'自重', aliases:['引体向上'], hot:2},
+    {id:'behind_neck_pulldown', name:'颈后下拉', met:5.0, equip:'器械', aliases:['颈后下拉'], hot:1},
+    {id:'asia_pulldown', name:'阿式下拉', met:5.0, equip:'绳索', aliases:['阿式下拉'], hot:3},
+    {id:'asia_cable_pulldown', name:'阿式龙门架下拉', met:5.0, equip:'绳索', aliases:['阿式龙门架下拉'], hot:2},
+    {id:'bb_row', name:'杠铃划船', met:6.0, equip:'杠铃', aliases:['杠铃划船'], hot:1},
+    {id:'lat_pulldown', name:'高位下拉', met:5.0, equip:'器械', aliases:['高位下拉'], hot:0},
+    {id:'face_pull', name:'面拉', met:4.5, equip:'绳索', aliases:['面拉'], hot:0},
   ]},
   shoulder: { name:'肩', icon:'circle', items:[
-    {id:'ohp', name:'站姿推举', met:6.0, equip:'杠铃'},
-    {id:'db_press', name:'哑铃推举', met:5.5, equip:'哑铃'},
-    {id:'lateral_raise', name:'侧平举', met:4.0, equip:'哑铃'},
-    {id:'rear_delt_fly', name:'反向飞鸟', met:4.0, equip:'哑铃'},
-    {id:'shrug', name:'耸肩', met:4.5, equip:'哑铃/杠铃'},
-    {id:'arnold_press', name:'阿诺德推举', met:5.5, equip:'哑铃'}
+    {id:'side_raise', name:'侧平举', met:3.5, equip:'哑铃', aliases:['侧平举'], hot:9},
+    {id:'machine_shoulder_press', name:'器械坐姿推举', met:5.0, equip:'器械', aliases:['器械坐姿推举'], hot:6},
+    {id:'db_shoulder_press', name:'哑铃推肩', met:5.0, equip:'哑铃', aliases:['哑铃推肩'], hot:3},
+    {id:'cable_side_raise', name:'绳索侧平举（单边）', met:3.5, equip:'绳索', aliases:['绳索侧平举（单边）'], hot:3},
+    {id:'reverse_fly', name:'俯身飞鸟', met:4.0, equip:'哑铃', aliases:['俯身飞鸟'], hot:2},
+    {id:'db_upright_row', name:'哑铃直立划船', met:5.0, equip:'哑铃', aliases:['哑铃直立划船'], hot:2},
+    {id:'bb_overhead_press', name:'站姿杠铃推举', met:5.5, equip:'杠铃', aliases:['站姿杠铃推举'], hot:2},
+    {id:'smith_press', name:'史密斯机推举', met:5.0, equip:'器械', aliases:['史密斯机推举'], hot:1},
+    {id:'half_bend_side_raise', name:'半俯身侧平举', met:3.5, equip:'哑铃', aliases:['半俯身侧平举'], hot:1},
+    {id:'machine_reverse_fly', name:'器械坐姿反向飞鸟', met:4.0, equip:'器械', aliases:['器械坐姿反向飞鸟'], hot:1},
+    {id:'bb_upright_row', name:'杠铃直立划船', met:5.0, equip:'杠铃', aliases:['杠铃直立划船'], hot:1},
+    {id:'cable_front_raise', name:'绳索胯裆前平举', met:3.5, equip:'绳索', aliases:['绳索胯裆前平举'], hot:1},
+    {id:'front_raise', name:'前平举', met:3.5, equip:'哑铃', aliases:['前平举'], hot:0},
+    {id:'arnold_press', name:'阿诺德推举', met:5.0, equip:'哑铃', aliases:['阿诺德推举'], hot:0},
   ]},
-  leg: { name:'腿', icon:'move-vertical', items:[
-    {id:'squat', name:'深蹲', met:7.0, equip:'杠铃'},
-    {id:'front_squat', name:'前蹲', met:7.0, equip:'杠铃'},
-    {id:'leg_press', name:'腿举', met:6.0, equip:'器械'},
-    {id:'rdl', name:'罗马尼亚硬拉', met:6.5, equip:'杠铃'},
-    {id:'lunge', name:'弓步蹲', met:5.5, equip:'哑铃/自重'},
-    {id:'leg_ext', name:'腿屈伸', met:4.5, equip:'器械'},
-    {id:'leg_curl', name:'腿弯举', met:4.5, equip:'器械'},
-    {id:'calf_raise', name:'提踵', met:3.5, equip:'器械/自重'}
+  leg: { name:'腿', icon:'move', items:[
+    {id:'leg_extension', name:'坐姿腿屈伸', met:5.0, equip:'器械', aliases:['坐姿腿屈伸'], hot:4},
+    {id:'leg_curl', name:'腿弯举', met:5.0, equip:'器械', aliases:['腿弯举'], hot:3},
+    {id:'hack_squat', name:'哈克机深蹲', met:6.0, equip:'器械', aliases:['哈克机深蹲'], hot:1},
+    {id:'leg_press', name:'器械倒蹬', met:5.5, equip:'器械', aliases:['器械倒蹬','蹬腿'], hot:1},
+    {id:'squat', name:'杠铃深蹲', met:7.0, equip:'杠铃', aliases:['杠铃深蹲'], hot:0},
+    {id:'front_squat', name:'前蹲', met:7.0, equip:'杠铃', aliases:['前蹲'], hot:0},
+    {id:'goblet_squat', name:'高脚杯深蹲', met:5.5, equip:'哑铃', aliases:['高脚杯深蹲'], hot:0},
+    {id:'lunge', name:'弓步蹲', met:5.0, equip:'自重/哑铃', aliases:['弓步蹲'], hot:0},
+    {id:'calf_raise', name:'提踵', met:3.5, equip:'自重/器械', aliases:['提踵'], hot:0},
   ]},
-  glute: { name:'臀', icon:'circle-dot', items:[
-    {id:'hip_thrust', name:'臀推', met:6.5, equip:'杠铃'},
-    {id:'glute_bridge', name:'臀桥', met:4.5, equip:'自重/负重'},
-    {id:'cable_kickback', name:'绳索后踢', met:4.5, equip:'绳索'},
-    {id:'sumo_dl', name:'相扑硬拉', met:7.0, equip:'杠铃'},
-    {id:'bulgarian_split', name:'保加利亚分腿蹲', met:6.0, equip:'哑铃'}
+  glute: { name:'臀/髋', icon:'circle-dot', items:[
+    {id:'hip_adduction', name:'坐姿髋内收', met:4.0, equip:'器械', aliases:['坐姿髋内收'], hot:2},
+    {id:'hip_abduction', name:'坐姿髋外展', met:4.0, equip:'器械', aliases:['坐姿髋外展'], hot:1},
+    {id:'hip_thrust', name:'臀冲', met:6.0, equip:'杠铃', aliases:['臀冲'], hot:0},
+    {id:'glute_bridge', name:'臀桥', met:4.0, equip:'自重', aliases:['臀桥'], hot:0},
   ]},
-  arm: { name:'手臂', icon:'flame', items:[
-    {id:'barbell_curl', name:'杠铃弯举', met:4.5, equip:'杠铃'},
-    {id:'db_curl', name:'哑铃弯举', met:4.5, equip:'哑铃'},
-    {id:'hammer_curl', name:'锤式弯举', met:4.5, equip:'哑铃'},
-    {id:'tricep_pushdown', name:'三头下压', met:4.5, equip:'绳索'},
-    {id:'skull_crusher', name:'仰卧臂屈伸', met:4.5, equip:'杠铃'},
-    {id:'preacher_curl', name:'牧师凳弯举', met:4.5, equip:'杠铃'}
+  arm: { name:'手臂', icon:'zap', items:[
+    {id:'cable_tricep_pushdown', name:'绳索臂屈伸', met:4.5, equip:'绳索', aliases:['绳索臂屈伸'], hot:10},
+    {id:'db_curl', name:'哑铃弯举', met:4.5, equip:'哑铃', aliases:['哑铃弯举'], hot:5},
+    {id:'reverse_tricep', name:'反手三头臂屈伸', met:4.5, equip:'绳索', aliases:['反手三头臂屈伸'], hot:2},
+    {id:'straight_bar_curl', name:'直杆绳索弯举', met:4.5, equip:'绳索', aliases:['直杆绳索弯举','直杆正手绳索弯举'], hot:3},
+    {id:'cable_curl', name:'绳索弯举', met:4.5, equip:'绳索', aliases:['绳索弯举'], hot:2},
+    {id:'dip_arm', name:'双杠臂屈伸（臂）', met:6.5, equip:'自重/负重', aliases:[], hot:0},
+    {id:'machine_curl', name:'器械弯举', met:4.5, equip:'器械', aliases:['器械弯举'], hot:1},
+    {id:'hammer_curl', name:'锤式弯举', met:4.5, equip:'哑铃', aliases:['锤式弯举'], hot:0},
+    {id:'close_grip_pushup', name:'窄距俯卧撑', met:4.0, equip:'自重', aliases:['窄距俯卧撑'], hot:0},
+    {id:'skull_crusher', name:'碎颅者', met:5.0, equip:'杠铃/EZ杆', aliases:['碎颅者'], hot:0},
   ]},
   core: { name:'核心', icon:'target', items:[
-    {id:'plank', name:'平板支撑', met:3.5, equip:'自重', byTime:true},
-    {id:'sit_up', name:'仰卧起坐', met:4.0, equip:'自重'},
-    {id:'crunch', name:'卷腹', met:4.0, equip:'自重'},
-    {id:'leg_raise', name:'举腿', met:4.5, equip:'自重'},
-    {id:'russian_twist', name:'俄罗斯转体', met:4.5, equip:'自重/负重'},
-    {id:'cable_crunch', name:'绳索卷腹', met:4.5, equip:'绳索'},
-    {id:'side_plank', name:'侧平板', met:3.5, equip:'自重', byTime:true}
+    {id:'ab_wheel', name:'腹肌轮收', met:4.5, equip:'健腹轮', aliases:['腹肌轮收','健腹轮'], hot:1},
+    {id:'plank', name:'平板支撑', met:3.0, equip:'自重', aliases:['平板支撑'], hot:0, byTime:true},
+    {id:'crunch', name:'卷腹', met:3.5, equip:'自重', aliases:['卷腹'], hot:0},
+    {id:'hanging_leg_raise', name:'悬垂举腿', met:4.5, equip:'自重', aliases:['悬垂举腿'], hot:0},
+    {id:'russian_twist', name:'俄罗斯转体', met:4.0, equip:'自重/哑铃', aliases:['俄罗斯转体'], hot:0},
   ]}
 };
+
+// 训记动作名 → 标准 id 的反向映射（运行时一次性构建）
+const EXERCISE_ALIAS_MAP = (() => {
+  const m = {};
+  for (const part in STRENGTH_LIBRARY) {
+    for (const it of STRENGTH_LIBRARY[part].items) {
+      m[it.name] = { id: it.id, part, name: it.name };
+      for (const a of (it.aliases||[])) m[a] = { id: it.id, part, name: it.name };
+    }
+  }
+  return m;
+})();
 
 function exTabContent(tab){
   if(tab==='cardio'){
@@ -2198,14 +2326,16 @@ function exTabContent(tab){
 function strengthDetailTemplate(payload){
   const { part, ex } = payload;
   const pr = strengthPR(ex.id);
-  const last = cache.strength?.filter(x=>x.exercise_id===ex.id).slice(-1)[0];
+  const last = lastSetForExercise(ex.id);
   // 把动作元数据存到 window，方便 recalc 函数读
   window._sdMeta = { part, ex };
+  // 用上一次的 set 自动预填表单
+  if(last){ window._sdLast = last; }
   setTimeout(()=>recalcStrength(), 100);
   return `
     <h3 class="text-lg font-black text-center">${STRENGTH_LIBRARY[part].name} · ${ex.name}</h3>
     ${dateRow('sd-date')}
-    <p class="text-[11px] text-slate-400 text-center mt-1">${ex.equip} · MET ${ex.met}${pr?' · 个人最佳 '+pr+'kg':''}</p>
+    <p class="text-[11px] text-slate-400 text-center mt-1">${ex.equip} · MET ${ex.met}${pr?' · 个人最佳 '+pr+'kg':''}${last?' · 上次 '+last.weight_kg+'kg×'+last.reps:''}</p>
     <div class="grid grid-cols-3 gap-2 mt-4">
       <div><p class="text-[10px] text-slate-400 mb-1">组数</p><input class="input" type="number" id="sd-sets" min="1" value="${last?.sets||4}" oninput="recalcStrength()"></div>
       <div><p class="text-[10px] text-slate-400 mb-1">${ex.byTime?'时长(秒)':'次数'}</p><input class="input" type="number" id="sd-reps" min="1" value="${last?.reps || (ex.byTime?60:8)}" oninput="recalcStrength()"></div>
@@ -2239,10 +2369,31 @@ function recalcStrength(){
 }
 
 function strengthPR(exId){
-  if(!cache.strength) return null;
-  const recs = cache.strength.filter(x=>x.exercise_id===exId);
-  if(!recs.length) return null;
-  return Math.max(...recs.map(x=>Number(x.weight)||0)) || null;
+  // v14: 从 workoutSets 里找该 exercise_id 的最大重量
+  if(!cache.workoutSets || !cache.workoutExercises) return null;
+  const exPks = cache.workoutExercises.filter(e=>e.exercise_id===exId).map(e=>e.id);
+  if(!exPks.length) return null;
+  const setPool = cache.workoutSets.filter(s=>exPks.includes(s.exercise_pk) && s.weight_kg>0);
+  if(!setPool.length) return null;
+  return Math.max(...setPool.map(s=>Number(s.weight_kg)||0)) || null;
+}
+
+function lastSetForExercise(exId){
+  // 返回该动作最后一次的 set（用于"上次"提示和预填）
+  if(!cache.workouts || !cache.workoutExercises || !cache.workoutSets) return null;
+  // 按 workout 日期倒序找第一个匹配
+  const workoutsByDate = [...cache.workouts].sort((a,b)=> b.date.localeCompare(a.date));
+  for(const w of workoutsByDate){
+    const ex = cache.workoutExercises.find(e=>e.workout_id===w.id && e.exercise_id===exId);
+    if(!ex) continue;
+    const sets = cache.workoutSets.filter(s=>s.exercise_pk===ex.id).sort((a,b)=>b.set_no-a.set_no);
+    if(sets.length){
+      // 返回最高重量那组
+      const best = sets.reduce((m,s)=> (Number(s.weight_kg)>Number(m.weight_kg))?s:m, sets[0]);
+      return best;
+    }
+  }
+  return null;
 }
 
 function openStrengthDetail(part, iIdx){
@@ -2292,6 +2443,8 @@ async function saveFlex(){
   toast(`+ ${t.name} ${min}min (${cal}kcal) ✓`);
 }
 async function saveStrength(){
+  // v14: 写入新三层表 workouts/exercises/sets
+  // 该入口仍是单动作快速记录，sets 字段拆为 N 组（同重量），自动算 PR
   const meta = window._sdMeta;
   if(!meta){ toast('动作数据丢失，请重新进入','error'); return; }
   const sets = parseInt($('sd-sets').value);
@@ -2302,35 +2455,69 @@ async function saveStrength(){
   if(!sets||sets<1){ toast('组数至少 1','error'); return; }
   if(!reps||reps<1){ toast(meta.ex.byTime?'时长至少 1 秒':'次数至少 1','error'); return; }
   const perSet = (meta.ex.byTime ? reps : reps*3) + rest;
-  const totalMin = Math.max(1, Math.round(sets*perSet/60));
+  const totalSec = sets*perSet;
+  const totalMin = Math.max(1, Math.round(totalSec/60));
   const cal = Math.round(meta.ex.met * currentWeight() * (totalMin/60));
   const date = getSheetDate('sd-date');
   const tm = nowHHMM();
-  const sRow = {
+  const totalVolume = meta.ex.byTime ? 0 : sets * reps * weight;
+  const oldPR = strengthPR(meta.ex.id) || 0;
+
+  // 1. 创建 workout
+  const wRow = {
     user_id: session.user.id, date,
-    body_part: meta.part, exercise_id: meta.ex.id, exercise_name: meta.ex.name,
-    sets, reps, weight, rest_sec: rest, cal, time:tm, note: note||null
+    duration_sec: totalSec,
+    source: 'app',
+    body_parts: [meta.part],
+    total_volume: totalVolume,
+    total_sets: sets,
+    note: note || null,
   };
-  const { data: sData, error: sErr } = await sb.from('strength_records').insert(sRow).select().single();
-  if(sErr){
-    if(sErr.code==='42P01' || sErr.message?.includes('relation')){
-      toast('请去 Supabase 跑最新 SQL（建 strength_records 表）','error');
-    } else toast(sErr.message,'error');
+  const { data: wData, error: wErr } = await sb.from('workouts').insert(wRow).select().single();
+  if(wErr){
+    if(wErr.code==='42P01' || wErr.message?.includes('relation')){
+      toast('请去 Supabase 跑 workouts-schema.sql','error');
+    } else toast(wErr.message,'error');
     return;
   }
-  cache.strength = cache.strength || [];
-  cache.strength.push(sData);
+  cache.workouts.unshift(wData);
 
-  const eRow = { user_id: session.user.id, date, name:`${STRENGTH_LIBRARY[meta.part].name}·${meta.ex.name}`, type:'力量', met:meta.ex.met, min:totalMin, cal, time:tm };
-  const { data: eData, error: eErr } = await sb.from('exercise_records').insert(eRow).select().single();
-  if(!eErr) cache.exercise.push(eData);
+  // 2. 创建 exercise
+  const eRow = {
+    workout_id: wData.id, user_id: session.user.id,
+    ord: 1, exercise_id: meta.ex.id, exercise_name: meta.ex.name, body_part: meta.part,
+    total_volume: totalVolume, set_count: sets,
+  };
+  const { data: eData, error: eErr } = await sb.from('workout_exercises').insert(eRow).select().single();
+  if(eErr){ toast('动作写入失败：'+eErr.message,'error'); return; }
+  cache.workoutExercises.push(eData);
 
-  const oldPR = strengthPR(meta.ex.id) || 0;
-  const recsForEx = cache.strength.filter(x=>x.exercise_id===meta.ex.id);
-  const newPR = recsForEx.length ? Math.max(...recsForEx.map(x=>Number(x.weight))) : 0;
+  // 3. 创建 N 个 set
+  const isPR = weight > 0 && weight > oldPR;
+  const setRows = [];
+  for(let i=1;i<=sets;i++){
+    setRows.push({
+      exercise_pk: eData.id, user_id: session.user.id,
+      set_no: i,
+      weight_kg: weight,
+      reps: meta.ex.byTime ? null : reps,
+      duration_sec: meta.ex.byTime ? reps : null,
+      rest_sec: rest,
+      is_pr: isPR && i===1, // 只把第一组标 PR（避免重复显示）
+    });
+  }
+  const { data: sData, error: sErr } = await sb.from('workout_sets').insert(setRows).select();
+  if(sErr){ toast('组数据写入失败：'+sErr.message,'error'); return; }
+  if(sData) cache.workoutSets.push(...sData);
+
+  // 4. 同时双写到 exercise_records 让首页/数据屏的"运动消耗"能看到
+  const exRow = { user_id: session.user.id, date, name:`${STRENGTH_LIBRARY[meta.part].name}·${meta.ex.name}`, type:'力量', met:meta.ex.met, min:totalMin, cal, time:tm };
+  const { data: exData, error: exErr } = await sb.from('exercise_records').insert(exRow).select().single();
+  if(!exErr) cache.exercise.push(exData);
+
   closeSheet(); refreshAll(); checkAchievements();
-  if(weight>0 && newPR > oldPR){
-    toast(`🏆 新 PR！${meta.ex.name} ${weight}kg`, 'gold');
+  if(isPR){
+    toast(`🏆 新 PR！${meta.ex.name} ${weight}kg×${reps}`, 'gold');
   } else {
     toast(`+ ${meta.ex.name} ${sets}×${reps}@${weight}kg (${cal}kcal) ✓`);
   }
@@ -2338,6 +2525,275 @@ async function saveStrength(){
 function nowHHMM(){
   const d = new Date();
   return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+
+// ============================================================
+// v14 「训记」子页面（计划页 → segmented 切换）
+// ============================================================
+let _trChartRadar = null;
+let _trChartPR = null;
+
+function switchPlanMode(mode){
+  document.querySelectorAll('#plan-mode-seg button').forEach(b=>{
+    b.classList.toggle('on', b.dataset.mode===mode);
+  });
+  $('plan-punch-area').style.display = (mode==='punch') ? '' : 'none';
+  $('plan-training-area').style.display = (mode==='training') ? '' : 'none';
+  if(mode==='training') setTimeout(renderTrainingPage, 50);
+}
+
+// 主渲染
+function renderTrainingPage(){
+  renderTrainingOverview();
+  renderTrainingHeatmap();
+  renderTrainingRadar();
+  renderTrainingHistory();
+  populatePRSelector();
+  renderTrainingPRChart();
+}
+
+// ===== 1. 概览卡 =====
+function renderTrainingOverview(){
+  const today = new Date();
+  const cutoff = new Date(today.getTime() - 30*86400000);
+  const cutoffStr = cutoff.toISOString().slice(0,10);
+  const recent = (cache.workouts||[]).filter(w=> w.date >= cutoffStr);
+
+  const days = recent.length;
+  const totalSets = recent.reduce((s,w)=>s+(w.total_sets||0), 0);
+  const totalVol = recent.reduce((s,w)=>s+Number(w.total_volume||0), 0);
+  // 时长截断（>3h 异常的当 1h）
+  const totalSec = recent.reduce((s,w)=>{
+    let d = w.duration_sec || 0;
+    if(d > 3*3600) d = 3600;
+    return s + d;
+  }, 0);
+
+  // 30 天 PR 数
+  const recentExPks = (cache.workoutExercises||[])
+    .filter(e=> recent.find(w=>w.id===e.workout_id))
+    .map(e=>e.id);
+  const prCount = (cache.workoutSets||[]).filter(s=>recentExPks.includes(s.exercise_pk) && s.is_pr).length;
+
+  $('tr-days').textContent = days;
+  $('tr-pr-30d').textContent = prCount;
+  $('tr-sets').textContent = totalSets;
+  $('tr-vol').firstChild.textContent = (totalVol/1000).toFixed(1);
+  $('tr-min').firstChild.textContent = (totalSec/3600).toFixed(1);
+}
+
+// ===== 2. 热力图（最近 12 周 = 84 天） =====
+function renderTrainingHeatmap(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = 12 * 7; // 84
+  const start = new Date(today.getTime() - (days-1)*86400000);
+  // 把 start 拨到对应周一
+  const sw = (start.getDay() + 6) % 7; // 周一=0
+  start.setDate(start.getDate() - sw);
+
+  // workout date → 总量
+  const volByDate = {};
+  for(const w of (cache.workouts||[])){
+    volByDate[w.date] = (volByDate[w.date] || 0) + Number(w.total_volume||0);
+  }
+  // 5 档色阶
+  const allVols = Object.values(volByDate).filter(v=>v>0);
+  const maxVol = allVols.length ? Math.max(...allVols) : 0;
+  function color(v){
+    if(!v) return 'rgba(255,255,255,.04)';
+    const r = Math.min(1, v / Math.max(maxVol, 1));
+    if(r<0.2) return 'rgba(255,122,69,.20)';
+    if(r<0.4) return 'rgba(255,122,69,.40)';
+    if(r<0.6) return 'rgba(255,122,69,.60)';
+    if(r<0.8) return 'rgba(255,122,69,.80)';
+    return 'rgba(255,122,69,1)';
+  }
+
+  // 渲染：周一 ~ 周日 7 行 x 12 周列
+  const rows = [];
+  const weeks = Math.ceil((today - start)/86400000 / 7) + 1;
+  for(let day=0; day<7; day++){
+    const cells = [];
+    for(let wk=0; wk<weeks; wk++){
+      const d = new Date(start.getTime() + (wk*7+day)*86400000);
+      if(d > today) { cells.push(`<div style="width:11px;height:11px"></div>`); continue; }
+      const ds = d.toISOString().slice(0,10);
+      const v = volByDate[ds] || 0;
+      cells.push(`<div title="${ds}: ${v?Math.round(v)+'kg·次':'休息'}" style="width:11px;height:11px;border-radius:2px;background:${color(v)};"></div>`);
+    }
+    rows.push(`<div style="display:flex;gap:3px;justify-content:flex-end">${cells.join('')}</div>`);
+  }
+  // 月份标签（top）
+  const monthLabels = [];
+  for(let wk=0; wk<weeks; wk++){
+    const d = new Date(start.getTime() + wk*7*86400000);
+    if(d.getDate()<=7) monthLabels.push(`<div style="font-size:9px;color:#8A95A6;width:11px">${d.getMonth()+1}月</div>`);
+    else monthLabels.push(`<div style="width:11px"></div>`);
+  }
+
+  $('tr-heatmap').innerHTML = `
+    <div style="display:flex;gap:3px;justify-content:flex-end;margin-bottom:4px">${monthLabels.join('')}</div>
+    <div style="display:flex;flex-direction:column;gap:3px">${rows.join('')}</div>
+    <div style="display:flex;align-items:center;gap:4px;justify-content:flex-end;margin-top:8px">
+      <span style="font-size:9px;color:#8A95A6">少</span>
+      ${[0.04,0.20,0.40,0.60,0.80,1.0].map(o=>`<div style="width:9px;height:9px;border-radius:2px;background:rgba(255,122,69,${o})"></div>`).join('')}
+      <span style="font-size:9px;color:#8A95A6">多</span>
+    </div>
+  `;
+}
+
+// ===== 3. 部位雷达图 =====
+function renderTrainingRadar(){
+  const today = new Date();
+  const cutoff = new Date(today.getTime() - 30*86400000).toISOString().slice(0,10);
+  const recentWorkoutIds = new Set((cache.workouts||[]).filter(w=>w.date>=cutoff).map(w=>w.id));
+  const exes = (cache.workoutExercises||[]).filter(e=>recentWorkoutIds.has(e.workout_id));
+
+  const partVol = { chest:0, back:0, shoulder:0, leg:0, glute:0, arm:0, core:0 };
+  for(const e of exes){
+    if(partVol[e.body_part] !== undefined) partVol[e.body_part] += Number(e.total_volume||0);
+  }
+  const labels = ['胸','背','肩','腿','臀/髋','手臂','核心'];
+  const data = ['chest','back','shoulder','leg','glute','arm','core'].map(p=>Math.round(partVol[p]));
+
+  const ctx = document.getElementById('tr-radar')?.getContext('2d');
+  if(!ctx) return;
+  if(_trChartRadar){ _trChartRadar.destroy(); }
+  _trChartRadar = new Chart(ctx, {
+    type:'radar',
+    data:{
+      labels,
+      datasets:[{
+        data,
+        backgroundColor:'rgba(255,122,69,.18)',
+        borderColor:'#FF7A45', borderWidth:2,
+        pointBackgroundColor:'#FF7A45', pointRadius:3,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{enabled:true} },
+      scales:{
+        r:{
+          ticks:{ display:false, backdropColor:'transparent' },
+          grid:{ color:'rgba(255,255,255,.06)' },
+          angleLines:{ color:'rgba(255,255,255,.08)' },
+          pointLabels:{ color:'#cbd5e1', font:{size:10, weight:'600'} },
+        }
+      }
+    }
+  });
+}
+
+// ===== 4. 主项 PR 趋势 =====
+function populatePRSelector(){
+  const sel = $('tr-pr-select');
+  if(!sel) return;
+  // 找出至少 3 次出现的有重量动作
+  const exFreq = {};
+  for(const ex of (cache.workoutExercises||[])){
+    if(!ex.exercise_id) continue;
+    const sets = (cache.workoutSets||[]).filter(s=>s.exercise_pk===ex.id && s.weight_kg>0);
+    if(!sets.length) continue;
+    if(!exFreq[ex.exercise_id]) exFreq[ex.exercise_id] = { count:0, name:ex.exercise_name };
+    exFreq[ex.exercise_id].count += 1;
+  }
+  const list = Object.entries(exFreq)
+    .filter(([,v])=>v.count>=2)
+    .sort((a,b)=>b[1].count-a[1].count)
+    .slice(0, 15);
+  sel.innerHTML = list.map(([id,v])=>`<option value="${id}">${v.name} (${v.count}x)</option>`).join('');
+}
+
+function renderTrainingPRChart(){
+  const sel = $('tr-pr-select');
+  if(!sel || !sel.value) return;
+  const exId = sel.value;
+
+  // 收集每次出现该动作的最大重量
+  const points = [];
+  for(const w of (cache.workouts||[]).slice().sort((a,b)=>a.date.localeCompare(b.date))){
+    const exes = (cache.workoutExercises||[]).filter(e=>e.workout_id===w.id && e.exercise_id===exId);
+    for(const e of exes){
+      const sets = (cache.workoutSets||[]).filter(s=>s.exercise_pk===e.id && s.weight_kg>0);
+      if(sets.length){
+        const max = Math.max(...sets.map(s=>Number(s.weight_kg)));
+        points.push({ date: w.date, max });
+      }
+    }
+  }
+
+  const ctx = document.getElementById('tr-pr-chart')?.getContext('2d');
+  if(!ctx) return;
+  if(_trChartPR){ _trChartPR.destroy(); }
+  _trChartPR = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels: points.map(p=>p.date.slice(5)),
+      datasets:[{
+        data: points.map(p=>p.max),
+        borderColor:'#FF7A45', borderWidth:2.5, tension:.3,
+        pointBackgroundColor:'#FF7A45', pointRadius:4,
+        backgroundColor:'rgba(255,122,69,.10)', fill:true,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{enabled:true, callbacks:{label:(c)=>c.parsed.y+'kg'}} },
+      scales:{
+        x:{ ticks:{color:'#8A95A6', font:{size:9}, maxTicksLimit:6}, grid:{display:false} },
+        y:{ ticks:{color:'#8A95A6', font:{size:9}, callback:(v)=>v+'kg'}, grid:{color:'rgba(255,255,255,.04)'} }
+      }
+    }
+  });
+}
+
+// ===== 5. 训练历史列表 =====
+function renderTrainingHistory(){
+  const wks = (cache.workouts||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  $('tr-history-count').textContent = `共 ${wks.length} 次`;
+  if(!wks.length){
+    $('tr-history-list').innerHTML = `<p class="empty"><i class="lucide lucide-dumbbell"></i>暂无训练记录</p>`;
+    return;
+  }
+  // 显示前 30 次
+  const html = wks.slice(0,30).map(w=>{
+    const exes = (cache.workoutExercises||[]).filter(e=>e.workout_id===w.id).sort((a,b)=>a.ord-b.ord);
+    const partsZh = (w.body_parts||[]).map(p=>STRENGTH_LIBRARY[p]?.name || p).join('/');
+    let dur = w.duration_sec || 0;
+    if(dur > 3*3600) dur = 3600; // 跨日 bug 截断
+    const durStr = dur >= 60 ? `${Math.round(dur/60)}min` : '';
+    // 算 PR 数
+    const exPks = exes.map(e=>e.id);
+    const prs = (cache.workoutSets||[]).filter(s=>exPks.includes(s.exercise_pk) && s.is_pr).length;
+
+    const exLines = exes.slice(0,5).map(e=>{
+      const sets = (cache.workoutSets||[]).filter(s=>s.exercise_pk===e.id).sort((a,b)=>a.set_no-b.set_no);
+      const setSummary = sets.length<=3
+        ? sets.map(s=> s.weight_kg>0 ? `${s.weight_kg}kg×${s.reps||s.duration_sec+'s'}` : `${s.reps||s.duration_sec+'s'}`).join(' / ')
+        : `${sets.length}组 ${Math.max(...sets.map(s=>Number(s.weight_kg)||0))||0}kg`;
+      return `<div style="font-size:11px;color:#8A95A6;padding:2px 0">· ${e.exercise_name} <span style="color:#cbd5e1">${setSummary}</span></div>`;
+    }).join('');
+    const more = exes.length>5 ? `<div style="font-size:10px;color:#64748b;padding:2px 0">+${exes.length-5} 个动作</div>` : '';
+
+    return `
+      <div class="card" style="background:rgba(255,255,255,.03); padding:10px 12px; border-radius:10px;">
+        <div class="flex items-center justify-between mb-1">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold">${w.date.slice(5)}</span>
+            <span class="text-[10px] text-slate-400">${partsZh || '—'}</span>
+            ${durStr?`<span class="text-[10px] text-slate-500">· ${durStr}</span>`:''}
+          </div>
+          <div class="flex items-center gap-1">
+            <span class="pill" style="background:rgba(91,157,255,.15);color:var(--blue);font-size:10px;padding:2px 6px">${w.total_sets || 0} 组</span>
+            ${prs?`<span class="pill" style="background:rgba(255,193,7,.18);color:#FFC107;font-size:10px;padding:2px 6px">PR ${prs}</span>`:''}
+          </div>
+        </div>
+        ${exLines}${more}
+      </div>
+    `;
+  }).join('');
+  $('tr-history-list').innerHTML = html;
 }
 
 // ============================================================
