@@ -177,3 +177,22 @@ for each row execute procedure public.set_updated_at();
 -- ============================================================
 -- 完成。回到代码即可使用 supabase-js 操作所有表。
 -- ============================================================
+
+-- ============================================================
+-- v3.1 追加：身体围度记录表
+-- ============================================================
+create table if not exists public.body_measures (
+  id bigserial primary key,
+  user_id uuid not null references auth.users on delete cascade,
+  date date not null,
+  waist numeric, chest numeric, hip numeric, thigh numeric,
+  arm numeric, neck numeric, calf numeric,
+  note text,
+  created_at timestamptz default now(),
+  unique (user_id, date)
+);
+create index if not exists idx_body_user_date on public.body_measures (user_id, date desc);
+alter table public.body_measures enable row level security;
+drop policy if exists "body_measures_owner_all" on public.body_measures;
+create policy "body_measures_owner_all" on public.body_measures
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);

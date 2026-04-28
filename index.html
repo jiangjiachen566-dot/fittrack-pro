@@ -79,20 +79,22 @@
   .tab-item i{ font-size:21px; }
   .tab-item.active{ color:var(--primary); }
   .tab-item:active{ transform:scale(.92); }
-  .fab{ position:absolute; bottom:42px; left:50%; transform:translateX(-50%);
-    width:54px; height:54px; border-radius:18px;
+  .fab{ position:absolute; bottom:38px; left:50%; transform:translateX(-50%);
+    width:60px; height:60px; border-radius:20px;
     background:linear-gradient(135deg,#FF7A45,#FF4D6D);
-    box-shadow:0 10px 24px -6px rgba(255,122,69,.7), 0 0 0 4px rgba(11,15,20,.95);
+    box-shadow:0 12px 28px -6px rgba(255,122,69,.75), 0 0 0 5px rgba(11,15,20,.95), inset 0 1px 0 rgba(255,255,255,.25);
     display:flex; align-items:center; justify-content:center; color:white;
-    z-index:45; cursor:pointer; border:none; transition:transform .2s; }
-  .fab:active{ transform:translateX(-50%) scale(.92); }
-  .fab i{ font-size:24px; }
+    z-index:45; cursor:pointer; border:none; transition:transform .2s, box-shadow .2s; }
+  .fab:hover{ box-shadow:0 16px 32px -6px rgba(255,122,69,.9), 0 0 0 5px rgba(11,15,20,.95); }
+  .fab:active{ transform:translateX(-50%) scale(.9); }
+  .fab i{ font-size:28px; stroke-width:2.5; }
   .pill{ display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px; font-size:10px; font-weight:600; }
   .seg{ display:flex; background:rgba(255,255,255,.05); border-radius:11px; padding:3px; }
   .seg button{ flex:1; padding:6px 0; border-radius:8px; font-size:11px; font-weight:600; color:var(--muted); border:none; background:transparent; cursor:pointer; transition:all .2s; }
   .seg button.on{ background:var(--panel-2); color:var(--text); box-shadow:0 2px 6px rgba(0,0,0,.3); }
-  .meal-icon{ width:36px; height:36px; border-radius:11px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .meal-icon i{ font-size:18px; }
+  .meal-icon{ width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 4px 10px -4px rgba(0,0,0,.3); }
+  .meal-icon i{ font-size:19px; stroke-width:2.2; }
   .number-xl{ font-weight:800; letter-spacing:-.02em; }
   .number-tabular{ font-variant-numeric:tabular-nums; }
   .dot{ width:6px; height:6px; border-radius:50%; display:inline-block; }
@@ -242,7 +244,7 @@
         </div>
       </div>
 
-      <!-- 减脂主卡 -->
+      <!-- 减脂计划主卡（环 = 计划进度） -->
       <div class="card mt-4 p-5 relative overflow-hidden">
         <div class="absolute -top-10 -right-10 w-40 h-40 rounded-full" style="background:radial-gradient(circle,rgba(255,122,69,.25),transparent 70%)"></div>
         <div class="flex items-start justify-between relative">
@@ -251,15 +253,15 @@
               <span class="pill" style="background:rgba(255,122,69,.15); color:var(--primary)">
                 <i class="lucide lucide-flame" style="font-size:11px"></i>减脂中
               </span>
-              <span class="text-[11px] text-slate-400">第 <span id="streak-day">1</span> 天</span>
+              <span class="text-[11px] text-slate-400" id="plan-name-pill">--</span>
             </div>
-            <p class="mt-3 text-xs text-slate-400">今日热量缺口</p>
+            <p class="mt-3 text-xs text-slate-400">计划进度</p>
             <div class="flex items-baseline gap-1 mt-1">
-              <span class="number-xl text-4xl" id="cal-deficit">0</span>
-              <span class="text-sm text-slate-400">kcal</span>
+              <span class="number-xl text-4xl" id="plan-day-cur">1</span>
+              <span class="text-sm text-slate-400">/ <span id="plan-day-total">--</span> 天</span>
             </div>
-            <p class="text-[11px] mt-1" style="color:var(--accent)" id="deficit-trend">
-              <i class="lucide lucide-trending-down" style="font-size:11px"></i> 今日尚未开始
+            <p class="text-[11px] mt-1" style="color:var(--accent)" id="plan-status-tip">
+              <i class="lucide lucide-trending-down" style="font-size:11px"></i> 已减 0.0 kg
             </p>
           </div>
           <div style="position:relative; width:120px; height:120px;">
@@ -276,21 +278,21 @@
             </svg>
             <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;">
               <span class="text-2xl font-black" id="ring-percent">0%</span>
-              <span class="text-[10px] text-slate-400">目标达成</span>
+              <span class="text-[10px] text-slate-400">达成</span>
             </div>
           </div>
         </div>
 
         <div class="grid grid-cols-3 gap-3 mt-5">
           <div>
-            <div class="flex items-center gap-1.5"><span class="dot" style="background:var(--primary)"></span><span class="text-[10px] text-slate-400">摄入</span></div>
+            <div class="flex items-center gap-1.5"><span class="dot" style="background:var(--primary)"></span><span class="text-[10px] text-slate-400">今日摄入</span></div>
             <p class="text-base font-bold mt-1 number-tabular"><span id="m-intake">0</span><span class="text-[10px] text-slate-400 font-normal">/<span id="m-intake-target">0</span></span></p>
             <div class="h-1 rounded-full mt-1.5" style="background:rgba(255,255,255,.06)">
               <div class="h-1 rounded-full" id="bar-intake" style="width:0%; background:var(--primary)"></div>
             </div>
           </div>
           <div>
-            <div class="flex items-center gap-1.5"><span class="dot" style="background:var(--accent)"></span><span class="text-[10px] text-slate-400">运动</span></div>
+            <div class="flex items-center gap-1.5"><span class="dot" style="background:var(--accent)"></span><span class="text-[10px] text-slate-400">今日运动</span></div>
             <p class="text-base font-bold mt-1 number-tabular"><span id="m-exercise">0</span><span class="text-[10px] text-slate-400 font-normal">/<span id="m-exercise-target">0</span></span></p>
             <div class="h-1 rounded-full mt-1.5" style="background:rgba(255,255,255,.06)">
               <div class="h-1 rounded-full" id="bar-exercise" style="width:0%; background:var(--accent)"></div>
@@ -315,61 +317,48 @@
         <div class="card mt-3 p-3 flex justify-between" id="week-strip"></div>
       </div>
 
-      <!-- 4 宫格 -->
+      <!-- 今日数据（展示当日最新，无入口，记录走 FAB） -->
       <div class="mt-5">
-        <h3 class="font-bold text-sm mb-3">快速记录</h3>
+        <h3 class="font-bold text-sm mb-3">今日数据</h3>
         <div class="grid grid-cols-2 gap-3">
-          <div class="card p-4 row-action" onclick="openSheet('weight')">
+          <div class="card p-4">
             <div class="flex items-center justify-between">
               <div class="meal-icon" style="background:rgba(255,107,139,.15); color:var(--pink)"><i class="lucide lucide-scale"></i></div>
-              <i class="lucide lucide-plus text-slate-500"></i>
+              <span class="text-[10px] text-slate-500" id="card-weight-time">--</span>
             </div>
             <p class="text-[11px] text-slate-400 mt-3">体重</p>
             <p class="text-xl font-black mt-0.5 number-tabular"><span id="card-weight">--</span><span class="text-xs text-slate-400 font-normal">kg</span></p>
             <p class="text-[10px]" style="color:var(--muted)" id="card-weight-trend">— 待记录</p>
           </div>
-          <div class="card p-4 row-action" onclick="openSheet('food')">
+          <div class="card p-4">
             <div class="flex items-center justify-between">
               <div class="meal-icon" style="background:rgba(255,122,69,.15); color:var(--primary)"><i class="lucide lucide-utensils"></i></div>
-              <i class="lucide lucide-plus text-slate-500"></i>
+              <span class="text-[10px] text-slate-500"><span id="card-food-count">0</span> 餐</span>
             </div>
             <p class="text-[11px] text-slate-400 mt-3">饮食</p>
             <p class="text-xl font-black mt-0.5 number-tabular"><span id="card-food">0</span><span class="text-xs text-slate-400 font-normal">kcal</span></p>
-            <p class="text-[10px] text-slate-400"><span id="card-food-count">0</span> 餐已记</p>
+            <p class="text-[10px] text-slate-400" id="card-food-last">尚未记录</p>
           </div>
-          <div class="card p-4 row-action" onclick="openSheet('exercise')">
+          <div class="card p-4">
             <div class="flex items-center justify-between">
               <div class="meal-icon" style="background:rgba(34,211,167,.15); color:var(--accent)"><i class="lucide lucide-dumbbell"></i></div>
-              <i class="lucide lucide-plus text-slate-500"></i>
+              <span class="text-[10px] text-slate-500" id="card-ex-count">0 次</span>
             </div>
             <p class="text-[11px] text-slate-400 mt-3">运动</p>
             <p class="text-xl font-black mt-0.5 number-tabular"><span id="card-ex-min">0</span><span class="text-xs text-slate-400 font-normal">min</span></p>
-            <p class="text-[10px]" style="color:var(--muted)" id="card-ex-tags">今日未运动</p>
+            <p class="text-[10px] text-slate-400" id="card-ex-tags">今日未运动</p>
           </div>
-          <div class="card p-4 row-action" onclick="openSheet('water')">
+          <div class="card p-4">
             <div class="flex items-center justify-between">
               <div class="meal-icon" style="background:rgba(91,157,255,.15); color:var(--blue)"><i class="lucide lucide-droplets"></i></div>
-              <i class="lucide lucide-plus text-slate-500"></i>
+              <span class="text-[10px] text-slate-500" id="card-water-pct">0%</span>
             </div>
             <p class="text-[11px] text-slate-400 mt-3">饮水</p>
             <p class="text-xl font-black mt-0.5 number-tabular"><span id="card-water">0</span><span class="text-xs text-slate-400 font-normal">L</span></p>
             <p class="text-[10px] text-slate-400">目标 <span id="card-water-target">2.4</span> L</p>
           </div>
         </div>
-      </div>
-
-      <!-- 今日要点（替代 AI 教练） -->
-      <div class="mt-5 card p-4 relative overflow-hidden">
-        <div class="absolute top-0 left-0 w-1 h-full grad-accent"></div>
-        <div class="flex items-start gap-3 pl-2">
-          <div class="w-8 h-8 rounded-xl grad-accent flex items-center justify-center flex-shrink-0">
-            <i class="lucide lucide-target text-white" style="font-size:15px"></i>
-          </div>
-          <div class="flex-1">
-            <p class="text-xs font-bold">今日要点</p>
-            <div class="mt-2 space-y-1.5" id="today-checklist"></div>
-          </div>
-        </div>
+        <p class="text-[10px] text-slate-500 text-center mt-4">点底部 + 号快速记录</p>
       </div>
 
     </div>
@@ -459,6 +448,19 @@
             <p class="text-lg font-black mt-1" id="d-days">-- <span class="text-xs text-slate-400 font-normal">天</span></p>
             <p class="text-[10px] text-slate-500">从开始日</p>
           </div>
+        </div>
+      </div>
+
+      <!-- 身体围度 -->
+      <div class="card mt-4 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="font-bold text-sm">身体围度</h4>
+          <button class="px-3 py-1.5 rounded-lg text-xs font-bold text-white grad-primary" style="border:none; cursor:pointer" onclick="openSheet('body-measure')">
+            <i class="lucide lucide-plus" style="font-size:11px; vertical-align:-1px"></i> 记录
+          </button>
+        </div>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-2" id="body-measures-grid">
+          <p class="empty col-span-2"><i class="lucide lucide-ruler"></i>还没有围度记录</p>
         </div>
       </div>
     </div>
@@ -654,7 +656,7 @@ let session = null;
 let profile = null;          // profiles 行
 let cache = {                // 内存缓存所有用户数据
   weights:[], food:[], exercise:[], water:[], sleep:[], mood:[],
-  customFoods:[], achievements:[]
+  customFoods:[], achievements:[], bodyMeasures:[]
 };
 const today = () => new Date().toISOString().slice(0,10);
 const fmtDate = (d) => (d instanceof Date ? d : new Date(d)).toISOString().slice(0,10);
@@ -726,7 +728,7 @@ async function loadProfile(){
 
 async function loadAll(){
   const uid = session.user.id;
-  const [w,f,e,wt,sl,md,cf,ach] = await Promise.all([
+  const [w,f,e,wt,sl,md,cf,ach,bm] = await Promise.all([
     sb.from('weights').select('*').eq('user_id',uid).order('date'),
     sb.from('food_records').select('*').eq('user_id',uid).order('date'),
     sb.from('exercise_records').select('*').eq('user_id',uid).order('date'),
@@ -734,7 +736,8 @@ async function loadAll(){
     sb.from('sleep_records').select('*').eq('user_id',uid),
     sb.from('mood_records').select('*').eq('user_id',uid),
     sb.from('custom_foods').select('*').eq('user_id',uid),
-    sb.from('achievements').select('*').eq('user_id',uid)
+    sb.from('achievements').select('*').eq('user_id',uid),
+    sb.from('body_measures').select('*').eq('user_id',uid).order('date')
   ]);
   cache.weights = w.data || [];
   cache.food = f.data || [];
@@ -744,6 +747,7 @@ async function loadAll(){
   cache.mood = md.data || [];
   cache.customFoods = cf.data || [];
   cache.achievements = ach.data || [];
+  cache.bodyMeasures = bm.data || [];
 }
 
 function showApp(){
@@ -1229,11 +1233,12 @@ function sheetTemplate(type, payload){
         {t:'food', n:'饮食', i:'utensils', bg:'rgba(255,122,69,.15)', c:'var(--primary)'},
         {t:'exercise', n:'运动', i:'dumbbell', bg:'rgba(34,211,167,.15)', c:'var(--accent)'},
         {t:'water', n:'饮水', i:'droplets', bg:'rgba(91,157,255,.15)', c:'var(--blue)'},
+        {t:'body-measure', n:'围度', i:'ruler', bg:'rgba(180,120,255,.15)', c:'#B478FF'},
         {t:'sleep', n:'睡眠', i:'moon-star', bg:'rgba(255,200,61,.15)', c:'var(--yellow)'},
         {t:'mood', n:'情绪', i:'smile', bg:'rgba(255,77,109,.15)', c:'#FF4D6D'}
       ].map(b=>`
         <div class="quick-btn" onclick="openSheet('${b.t}')">
-          <div class="meal-icon" style="background:${b.bg}; color:${b.c}; width:42px; height:42px"><i class="lucide lucide-${b.i}" style="font-size:19px"></i></div>
+          <div class="meal-icon" style="background:${b.bg}; color:${b.c}; width:46px; height:46px; border-radius:14px"><i class="lucide lucide-${b.i}" style="font-size:20px"></i></div>
           <span class="text-xs font-semibold">${b.n}</span>
         </div>`).join('')}
     </div>
@@ -1452,6 +1457,26 @@ function sheetTemplate(type, payload){
 
   if(type==='achievements') return achievementsTemplate();
   if(type==='history') return historyTemplate();
+  if(type==='body-measure'){
+    const last = cache.bodyMeasures[cache.bodyMeasures.length-1] || {};
+    return `
+      <h3 class="text-lg font-black text-center">记录身体围度</h3>
+      <p class="text-[11px] text-slate-400 text-center mt-1">建议晨起空腹、放松状态测量 · 单位 cm</p>
+      <p class="text-[10px] text-slate-500 text-center mt-1">${today()} · 同日重复记录会覆盖</p>
+      <div class="grid grid-cols-2 gap-3 mt-4">
+        <div><p class="text-[11px] text-slate-400 mb-1.5">腰围</p><input class="input" type="number" step="0.1" id="bm-waist" value="${last.waist||''}" placeholder="78.5"></div>
+        <div><p class="text-[11px] text-slate-400 mb-1.5">胸围</p><input class="input" type="number" step="0.1" id="bm-chest" value="${last.chest||''}" placeholder="96.0"></div>
+        <div><p class="text-[11px] text-slate-400 mb-1.5">臀围</p><input class="input" type="number" step="0.1" id="bm-hip" value="${last.hip||''}" placeholder="94.2"></div>
+        <div><p class="text-[11px] text-slate-400 mb-1.5">大腿</p><input class="input" type="number" step="0.1" id="bm-thigh" value="${last.thigh||''}" placeholder="55.8"></div>
+        <div><p class="text-[11px] text-slate-400 mb-1.5">手臂</p><input class="input" type="number" step="0.1" id="bm-arm" value="${last.arm||''}" placeholder="32.0"></div>
+        <div><p class="text-[11px] text-slate-400 mb-1.5">颈围</p><input class="input" type="number" step="0.1" id="bm-neck" value="${last.neck||''}" placeholder="36.0"></div>
+        <div><p class="text-[11px] text-slate-400 mb-1.5">小腿</p><input class="input" type="number" step="0.1" id="bm-calf" value="${last.calf||''}" placeholder="36.0"></div>
+      </div>
+      <p class="text-[10px] text-slate-500 mt-3">空着的部位不会保存，可分次填写</p>
+      <button class="btn-primary mt-4" onclick="saveBodyMeasure()">保存</button>
+      <button class="btn-ghost mt-2" onclick="closeSheet()">取消</button>
+    `;
+  }
 
   return '';
 }
@@ -1694,6 +1719,33 @@ async function saveMood(emoji, label){
   closeSheet(); refreshAll();
   if(currentCat()==='life') renderRecordList('life');
   toast(`心情：${emoji} ${label} ✓`);
+}
+
+async function saveBodyMeasure(){
+  const fields = ['waist','chest','hip','thigh','arm','neck','calf'];
+  const row = { user_id: session.user.id, date: today() };
+  let any = false;
+  for(const k of fields){
+    const v = parseFloat($('bm-'+k).value);
+    if(!isNaN(v)){
+      if(v < 10 || v > 200){ toast(`${k} 范围 10-200 cm`,'error'); return; }
+      row[k] = v; any = true;
+    }
+  }
+  if(!any){ toast('至少填写一项围度','error'); return; }
+  const { data, error } = await sb.from('body_measures').upsert(row, { onConflict:'user_id,date' }).select().single();
+  if(error){
+    if(error.message.includes('relation') || error.code==='42P01'){
+      toast('请先在 Supabase 跑最新 SQL 建 body_measures 表','error');
+    } else {
+      toast(error.message,'error');
+    }
+    return;
+  }
+  const idx = cache.bodyMeasures.findIndex(x=>x.date===today());
+  if(idx>=0) cache.bodyMeasures[idx] = data; else { cache.bodyMeasures.push(data); cache.bodyMeasures.sort((a,b)=>a.date.localeCompare(b.date)); }
+  closeSheet(); refreshAll();
+  toast('围度已记录 ✓');
 }
 
 async function delRecord(cat, id){
@@ -2052,8 +2104,7 @@ function refreshAll(){
   $('hi-name').textContent = profile.name;
   $('hi-avatar').textContent = profile.name.charAt(0).toUpperCase();
 
-  // 主卡
-  $('cal-deficit').textContent = (d.deficit>=0?'+':'') + Math.round(d.deficit);
+  // 主卡：进度环 = 计划进度
   $('m-intake').textContent = Math.round(d.intake);
   $('m-intake-target').textContent = calT;
   $('m-exercise').textContent = Math.round(d.exCal);
@@ -2062,36 +2113,48 @@ function refreshAll(){
   $('bar-intake').style.width = Math.min(100, d.intake/calT*100) + '%';
   $('bar-exercise').style.width = Math.min(100, d.exCal/Math.max(1,exT)*100) + '%';
 
-  // 进度环（净缺口达成率，目标是负缺口）
-  const targetDef = -(profile.start_weight ? Math.min(700, calT*0.25) : 500);
-  const achPct = Math.min(150, Math.max(0, d.deficit/targetDef*100));
-  $('ring-percent').textContent = Math.round(Math.min(achPct,100)) + '%';
-  $('ring-main').setAttribute('stroke-dashoffset', 314 - (314 * Math.min(achPct,100)/100));
-  $('deficit-trend').innerHTML = d.intake>0
-    ? `<i class="lucide lucide-trending-down" style="font-size:11px"></i> 已达目标 ${Math.round(Math.min(achPct,100))}%`
-    : `<i class="lucide lucide-clock" style="font-size:11px"></i> 今日尚未开始`;
+  // 进度环：基于计划起止日期
+  $('plan-name-pill').textContent = plan.name || '减脂计划';
+  let planPct = 0, dayCur = 0, dayTotal = 0;
+  if(plan.startDate && plan.endDate){
+    const ms = new Date(plan.endDate) - new Date(plan.startDate);
+    dayTotal = Math.max(1, Math.round(ms/86400000));
+    dayCur = Math.max(0, Math.min(dayTotal, Math.floor((Date.now() - new Date(plan.startDate))/86400000)+1));
+    planPct = Math.round(dayCur/dayTotal*100);
+  }
+  $('plan-day-cur').textContent = dayCur;
+  $('plan-day-total').textContent = dayTotal;
+  $('ring-percent').textContent = planPct + '%';
+  $('ring-main').setAttribute('stroke-dashoffset', 314 - (314 * planPct/100));
+  const cw0 = currentWeight();
+  const lost0 = Math.max(0, profile.start_weight - cw0);
+  $('plan-status-tip').innerHTML = `<i class="lucide lucide-trending-down" style="font-size:11px"></i> 已减 ${lost0.toFixed(1)} kg / 目标 ${(profile.start_weight-profile.goal_weight).toFixed(1)} kg`;
 
-  // 4 卡
-  const cw = currentWeight();
+  // 今日数据卡（只展示，不再点击进入）
+  const cw = cw0;
   const prev = cache.weights[cache.weights.length-2]?.kg || cw;
+  const lastWeightRow = cache.weights[cache.weights.length-1];
   $('card-weight').textContent = cw.toFixed(1);
+  $('card-weight-time').textContent = lastWeightRow ? lastWeightRow.date.slice(5) : '';
   const dw = cw - prev;
   const tEl = $('card-weight-trend');
   if(dw < 0){ tEl.style.color='var(--accent)'; tEl.textContent='▼ '+Math.abs(dw).toFixed(1)+' kg'; }
   else if(dw > 0){ tEl.style.color='var(--danger)'; tEl.textContent='▲ '+dw.toFixed(1)+' kg'; }
   else { tEl.style.color='var(--muted)'; tEl.textContent='— 持平'; }
 
+  const todayFood = cache.food.filter(x=>x.date===today());
+  const todayEx = cache.exercise.filter(x=>x.date===today());
   $('card-food').textContent = Math.round(d.intake);
-  const meals = new Set(cache.food.filter(x=>x.date===today()).map(x=>x.meal));
-  $('card-food-count').textContent = meals.size;
+  $('card-food-count').textContent = new Set(todayFood.map(x=>x.meal)).size;
+  $('card-food-last').textContent = todayFood.length ? `最近：${todayFood[todayFood.length-1].name}` : '尚未记录';
   $('card-ex-min').textContent = d.exMin;
-  const types = [...new Set(cache.exercise.filter(x=>x.date===today()).map(x=>x.type))];
+  $('card-ex-count').textContent = todayEx.length + ' 次';
+  const types = [...new Set(todayEx.map(x=>x.type))];
   $('card-ex-tags').textContent = types.length ? types.join(' + ') : '今日未运动';
   $('card-water').textContent = (getWater()/1000).toFixed(1);
   $('card-water-target').textContent = ((plan.waterTargetMl||2400)/1000).toFixed(1);
+  $('card-water-pct').textContent = Math.round(getWater()/(plan.waterTargetMl||2400)*100) + '%';
 
-  // 第几天 / 连续
-  $('streak-day').textContent = totalDaysSinceStart();
   $('combo-day').textContent = streakDays();
 
   // 计划屏
@@ -2164,26 +2227,48 @@ function refreshAll(){
   $('d-lost').innerHTML = lost.toFixed(1)+' <span class="text-xs text-slate-400 font-normal">kg</span>';
   $('d-days').innerHTML = totalDaysSinceStart()+' <span class="text-xs text-slate-400 font-normal">天</span>';
 
-  // 今日要点
-  renderTodayChecklist(d, plan);
+  renderBodyMeasures();
   renderWeekStrip();
 }
 
-function renderTodayChecklist(d, plan){
-  const calT = plan.calTarget || 1500;
+function renderBodyMeasures(){
+  const wrap = $('body-measures-grid');
+  if(!wrap) return;
+  const list = (cache.bodyMeasures||[]).slice().sort((a,b)=>b.date.localeCompare(a.date));
+  if(!list.length){
+    wrap.innerHTML = `<p class="empty col-span-2"><i class="lucide lucide-ruler"></i>还没有围度记录<br><span style="font-size:10px">点右上「+ 记录」开始追踪</span></p>`;
+    return;
+  }
+  const latest = list[0];
+  const prev = list[1] || latest;
   const items = [
-    { ok: d.intake>0 && d.intake<=calT*1.05, label:`热量 ${Math.round(d.intake)}/${calT} kcal`, hint: d.intake===0?'未记录饮食':(d.intake>calT*1.05?`超 ${Math.round(d.intake-calT)} kcal`:'达标') },
-    { ok: d.p >= (plan.proteinG||105)*0.8, label:`蛋白 ${Math.round(d.p)}/${plan.proteinG||105}g`, hint: d.p>=(plan.proteinG||105)*0.8?'充足':'偏低' },
-    { ok: d.exMin >= 20, label:`运动 ${d.exMin} 分钟`, hint: d.exMin>=20?'已达标':'目标 20 分钟' },
-    { ok: getWater() >= (plan.waterTargetMl||2400)*0.8, label:`饮水 ${(getWater()/1000).toFixed(1)}/${((plan.waterTargetMl||2400)/1000).toFixed(1)} L`, hint: getWater()>=(plan.waterTargetMl||2400)*0.8?'充足':'还差 '+Math.round((plan.waterTargetMl||2400)-getWater())+' ml' }
+    { key:'waist', name:'腰围', icon:'user' },
+    { key:'chest', name:'胸围', icon:'shirt' },
+    { key:'hip', name:'臀围', icon:'circle-dot' },
+    { key:'thigh', name:'大腿', icon:'move-vertical' },
+    { key:'arm', name:'手臂', icon:'flame' },
+    { key:'neck', name:'颈围', icon:'circle' },
+    { key:'calf', name:'小腿', icon:'minus' }
   ];
-  $('today-checklist').innerHTML = items.map(it=>`
-    <div class="flex items-center gap-2 text-xs">
-      <i class="lucide lucide-${it.ok?'check-circle-2':'circle'}" style="font-size:14px; color:${it.ok?'var(--accent)':'var(--muted)'}"></i>
-      <span style="color:${it.ok?'var(--text)':'var(--muted)'}">${it.label}</span>
-      <span class="text-[10px] ml-auto" style="color:${it.ok?'var(--accent)':'var(--muted)'}">${it.hint}</span>
-    </div>
-  `).join('');
+  wrap.innerHTML = items
+    .filter(it => latest[it.key] != null)
+    .map(it => {
+      const v = latest[it.key];
+      const pv = prev[it.key];
+      const delta = (pv != null && pv !== v) ? (v - pv) : null;
+      let trend = '— 持平', col = 'var(--muted)';
+      if(delta !== null){
+        if(delta < 0){ trend = '▼ '+Math.abs(delta).toFixed(1); col='var(--accent)'; }
+        else if(delta > 0){ trend = '▲ '+delta.toFixed(1); col='var(--danger)'; }
+      }
+      return `<div class="flex items-center justify-between p-2 rounded-lg" style="background:rgba(255,255,255,.03)">
+        <span class="text-xs text-slate-300 flex items-center gap-1.5"><i class="lucide lucide-${it.icon}" style="font-size:11px"></i>${it.name}</span>
+        <div class="text-right">
+          <span class="text-sm font-bold number-tabular">${v}</span><span class="text-[10px] text-slate-400">cm</span>
+          <p class="text-[9px]" style="color:${col}">${trend}</p>
+        </div>
+      </div>`;
+    }).join('') || `<p class="empty col-span-2"><i class="lucide lucide-ruler"></i>已记录但未填写具体围度</p>`;
 }
 
 function renderWaterCells(){
@@ -2304,6 +2389,7 @@ function renderRecordList(cat){
     }
   } else if(cat==='body'){
     const lw = cache.weights[cache.weights.length-1];
+    const lbm = cache.bodyMeasures[cache.bodyMeasures.length-1];
     wrap.innerHTML = `
       <div class="card p-4 mb-3">
         <h4 class="font-bold text-sm mb-3">最新身体数据</h4>
@@ -2313,8 +2399,22 @@ function renderRecordList(cat){
           <div class="card-2 p-3"><p class="text-[10px] text-slate-400">肌肉量</p><p class="text-lg font-black mt-1">${lw?.muscle||'--'} <span class="text-[11px] text-slate-400 font-normal">kg</span></p></div>
           <div class="card-2 p-3"><p class="text-[10px] text-slate-400">BMI</p><p class="text-lg font-black mt-1">${lw?(lw.kg/((profile.height_cm/100)**2)).toFixed(1):'--'}</p></div>
         </div>
-        <button class="btn-primary mt-4" onclick="openSheet('weight')">+ 记录今日体重</button>
+        <div class="grid grid-cols-2 gap-2 mt-3">
+          <button class="btn-primary" onclick="openSheet('weight')"><i class="lucide lucide-scale" style="font-size:13px; vertical-align:-1px"></i> 记录体重</button>
+          <button class="btn-primary" onclick="openSheet('body-measure')"><i class="lucide lucide-ruler" style="font-size:13px; vertical-align:-1px"></i> 记录围度</button>
+        </div>
       </div>
+      ${lbm ? `<div class="card p-4 mb-3">
+        <h4 class="font-bold text-sm mb-3">最新围度（${lbm.date}）</h4>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+          ${[['waist','腰围'],['chest','胸围'],['hip','臀围'],['thigh','大腿'],['arm','手臂'],['neck','颈围'],['calf','小腿']]
+            .filter(([k])=>lbm[k]!=null)
+            .map(([k,n])=>`<div class="flex items-center justify-between p-2 rounded-lg" style="background:rgba(255,255,255,.03)">
+              <span class="text-xs text-slate-300">${n}</span>
+              <span class="text-sm font-bold number-tabular">${lbm[k]} <span class="text-[10px] text-slate-400">cm</span></span>
+            </div>`).join('') || '<p class="empty col-span-2">本次未填写具体数值</p>'}
+        </div>
+      </div>` : ''}
     `;
   } else if(cat==='life'){
     const sl = cache.sleep.find(x=>x.date===t);
