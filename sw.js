@@ -1,6 +1,6 @@
 // FitTrack Pro Service Worker
 // 策略：核心壳 cache-first，外部 CDN stale-while-revalidate
-const CACHE = 'fittrack-pro-v1';
+const CACHE = 'fittrack-pro-v3';
 const CORE = [
   './',
   './index.html',
