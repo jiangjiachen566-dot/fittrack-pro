@@ -1801,6 +1801,7 @@ function sheetTemplate(type, payload){
         </div>
       </div>
       <input type="hidden" id="food-idx" value="${payload}">
+      <input type="hidden" id="food-item" value='${JSON.stringify(item).replace(/'/g, "&#39;")}'>
       <input type="hidden" id="food-meal" value="${document.querySelector('#meal-seg button.on')?.dataset.meal || 'breakfast'}">
       <input type="hidden" id="food-date" value="${(document.getElementById('f-date')?.value) || today()}">
       <button id="food-add-btn" class="btn-primary mt-4" onclick="addFood(parseInt($('food-idx').value), parseFloat($('food-qty').value))">+ 添加到 ${({breakfast:'早餐',lunch:'午餐',dinner:'晚餐',snack:'加餐'})[document.querySelector('#meal-seg button.on')?.dataset.meal || 'breakfast']}</button>
@@ -3851,8 +3852,18 @@ function qSet(v){
 }
 function qPreview(){
   const q = parseFloat($('food-qty').value)||1;
-  const lib = JSON.parse($('meal-data').value);
-  const item = lib[parseInt($('food-idx').value)];
+  // v15.6: 优先用 food-item hidden input，兜底 meal-data
+  let item;
+  try {
+    const itemJson = $('food-item')?.value;
+    if(itemJson){
+      item = JSON.parse(itemJson.replace(/&#39;/g, "'"));
+    } else {
+      const lib = JSON.parse($('meal-data').value);
+      item = lib[parseInt($('food-idx').value)];
+    }
+  } catch(e){ return; }
+  if(!item) return;
   const cal = Math.round(item.cal*q);
   if($('qp-cal')) $('qp-cal').textContent = cal;
   if($('qp-p')) $('qp-p').textContent = (item.p*q).toFixed(1)+'g';
@@ -3913,8 +3924,24 @@ async function saveWeight(){
 }
 
 async function addFood(idx, qty){
-  const lib = JSON.parse($('meal-data').value);
-  const item = lib[idx];
+  // v15.6: 优先从 food-detail sheet 自带的 hidden input 取 item，
+  // 兜底再 fall back 到 #meal-data（旧逻辑），避免 sheet 切换后 #meal-data 已被销毁
+  let item;
+  try {
+    const itemJson = $('food-item')?.value;
+    if(itemJson){
+      // 解码 HTML 实体（&#39; → ')
+      const decoded = itemJson.replace(/&#39;/g, "'");
+      item = JSON.parse(decoded);
+    } else {
+      const lib = JSON.parse($('meal-data').value);
+      item = lib[idx];
+    }
+  } catch(e){
+    toast('食物数据丢失，请返回列表重新选择','error');
+    return;
+  }
+  if(!item){ toast('食物数据丢失','error'); return; }
   qty = qty || 1;
 
   // 提取该食物的「单份克数」（如"鸡胸肉 100g"提到 100；提取不到则 null）
