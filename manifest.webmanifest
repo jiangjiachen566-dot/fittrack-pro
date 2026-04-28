@@ -1,33 +1,48 @@
 {
-  "name": "FitTrack Pro · 智能减脂",
+  "name": "FitTrack Pro · 智能减脂管理",
   "short_name": "FitTrack",
-  "description": "科学减脂管理：BMR/TDEE 计算 · 饮食运动追踪 · AI 教练建议",
+  "description": "科学减脂全流程管理：BMR/TDEE 计算、饮食运动追踪、32 枚成就徽章、云端跨设备同步",
+  "id": "/fittrack-pro/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait",
   "background_color": "#06080B",
   "theme_color": "#FF7A45",
   "lang": "zh-CN",
+  "dir": "ltr",
   "categories": ["health", "fitness", "lifestyle"],
+  "prefer_related_applications": false,
   "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
     {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "name": "记录饮食",
+      "short_name": "饮食",
+      "description": "快速记录今日饮食",
+      "url": "./?action=food",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "name": "记录运动",
+      "short_name": "运动",
+      "description": "快速记录运动消耗",
+      "url": "./?action=exercise",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
+      "name": "记录体重",
+      "short_name": "体重",
+      "description": "称重并记录今日体重",
+      "url": "./?action=weight",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
+
