@@ -34,7 +34,7 @@
     --danger:#FF4D6D; --gold:#FFC83D;
   }
   *{ -webkit-tap-highlight-color:transparent; box-sizing:border-box; }
-  html,body{ margin:0; padding:0; }
+  html,body{ margin:0; padding:0; color-scheme:dark; }
   body{
     background:#06080B; color:var(--text);
     font-family:'Inter','Noto Sans SC',system-ui,sans-serif;
@@ -134,7 +134,8 @@
   .onb-dot{ width:24px; height:4px; border-radius:2px; background:rgba(255,255,255,.1); transition:background .25s; }
   .onb-dot.on{ background:var(--primary); }
   .qty-stepper{ display:flex; align-items:center; gap:10px; margin:14px 0; }
-  .qty-btn{ width:36px; height:36px; border-radius:11px; background:var(--panel-2); border:1px solid var(--line); color:var(--text); font-size:20px; cursor:pointer; font-family:inherit; }
+  .qty-btn{ width:44px; height:44px; border-radius:14px; background:linear-gradient(135deg, rgba(255,122,69,.18), rgba(255,77,109,.12)); border:1px solid rgba(255,122,69,.35); color:var(--primary); font-size:22px; font-weight:700; line-height:1; cursor:pointer; font-family:inherit; box-shadow:0 2px 6px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.05); transition:transform .12s, background .15s; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .qty-btn:active{ transform:scale(.92); background:linear-gradient(135deg, rgba(255,122,69,.3), rgba(255,77,109,.2)); }
   .qty-presets{ display:flex; gap:6px; margin-top:8px; }
   .qty-presets button{ flex:1; padding:6px 0; border-radius:8px; background:var(--panel-2); border:1px solid var(--line); color:var(--muted); font-weight:600; font-size:12px; cursor:pointer; font-family:inherit; }
   .qty-presets button.on{ background:rgba(255,122,69,.15); border-color:var(--primary); color:var(--primary); }
@@ -143,8 +144,29 @@
   .food-row:hover{ border-color:var(--primary); }
   .input{ width:100%; background:var(--panel-2); border:1px solid var(--line);
     border-radius:12px; padding:12px 14px; color:var(--text);
-    font-size:14px; font-family:inherit; outline:none; transition:border-color .2s; }
+    font-size:14px; font-family:inherit; outline:none; transition:border-color .2s;
+    color-scheme:dark; }
   .input:focus{ border-color:var(--primary); }
+  /* 日期 input：强制深色配色 + 日历图标白色 */
+  input[type="date"], input[type="time"]{ color-scheme:dark; color:var(--text); -webkit-appearance:none; appearance:none; }
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator{ filter:invert(1) brightness(1.2) opacity(.7); cursor:pointer; }
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="time"]::-webkit-datetime-edit{ color:var(--text); }
+  input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  input[type="time"]::-webkit-datetime-edit-fields-wrapper{ color:var(--text); }
+  input[type="date"]::-webkit-datetime-edit-text,
+  input[type="date"]::-webkit-datetime-edit-month-field,
+  input[type="date"]::-webkit-datetime-edit-day-field,
+  input[type="date"]::-webkit-datetime-edit-year-field,
+  input[type="time"]::-webkit-datetime-edit-text,
+  input[type="time"]::-webkit-datetime-edit-hour-field,
+  input[type="time"]::-webkit-datetime-edit-minute-field,
+  input[type="time"]::-webkit-datetime-edit-ampm-field{ color:var(--text); }
+  /* 干掉所有 number 的默认上下箭头（用我们自己的 stepper） */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  input[type="number"]{ -moz-appearance:textfield; }
   .btn-primary{ width:100%; padding:14px; border-radius:14px; border:none;
     background:linear-gradient(135deg,#FF7A45,#FF4D6D);
     color:white; font-weight:700; font-size:14px; cursor:pointer;
@@ -175,7 +197,13 @@
   .empty i{ font-size:36px; opacity:.3; display:block; margin-bottom:8px; }
   .number-input{ background:var(--panel-2); border:1px solid var(--line); border-radius:14px;
     padding:18px; text-align:center; font-size:32px; font-weight:800; color:var(--text);
-    width:100%; outline:none; font-family:inherit; }
+    width:100%; outline:none; font-family:inherit; color-scheme:dark; }
+  /* 通用数字 stepper：左右常驻 ± 按钮 */
+  .num-stepper{ display:flex; align-items:stretch; gap:10px; margin-top:6px; }
+  .num-stepper .number-input{ flex:1; padding:14px 8px; font-size:26px; }
+  .num-stepper-sm{ display:flex; align-items:center; gap:6px; }
+  .num-stepper-sm .qty-btn{ width:36px; height:36px; font-size:18px; border-radius:11px; }
+  .num-stepper-sm .input{ flex:1; text-align:center; font-size:15px; font-weight:700; padding:9px 6px; }
   .chip-select{ display:flex; flex-wrap:wrap; gap:8px; }
   .chip{ padding:8px 14px; border-radius:999px; font-size:12px; font-weight:600;
     background:var(--panel-2); border:1px solid var(--line); color:var(--muted);
@@ -1282,9 +1310,10 @@ function openSheet(type, payload){
 
 // 通用日期行（默认今日，可改任何日期，最多到今天）
 function dateRow(id){
-  return `<div class="flex items-center justify-center gap-2 mt-2">
-    <i class="lucide lucide-calendar" style="font-size:14px; color:var(--muted)"></i>
-    <input class="input" id="${id}" type="date" value="${today()}" max="${today()}" style="width:auto; padding:6px 10px; font-size:12px; text-align:center">
+  return `<div class="flex items-center justify-center gap-2 mt-3" style="background:var(--panel-2); border:1px solid var(--line); border-radius:12px; padding:8px 14px;">
+    <i class="lucide lucide-calendar" style="font-size:14px; color:var(--primary)"></i>
+    <input id="${id}" type="date" value="${today()}" max="${today()}"
+      style="background:transparent; border:none; outline:none; color:var(--text); font-size:13px; font-weight:600; font-family:inherit; text-align:center; color-scheme:dark;">
   </div>`;
 }
 function getSheetDate(id){ return $(id)?.value || today(); }
@@ -1318,12 +1347,30 @@ function sheetTemplate(type, payload){
       <h3 class="text-lg font-black text-center">记录体重</h3>
       ${dateRow('w-date')}
       <div class="mt-4">
-        <input class="number-input" type="number" step="0.1" id="in-weight" value="${last}" placeholder="68.2">
+        <div class="num-stepper">
+          <button class="qty-btn" onclick="numStep('in-weight',-0.1,0.1)">−</button>
+          <input class="number-input" type="number" step="0.1" id="in-weight" value="${last}" placeholder="68.2">
+          <button class="qty-btn" onclick="numStep('in-weight',0.1,0.1)">+</button>
+        </div>
         <p class="text-center text-[10px] text-slate-500 mt-1">kg · 建议晨起空腹称量</p>
       </div>
       <div class="grid grid-cols-2 gap-3 mt-5">
-        <div><label class="text-[11px] text-slate-400 block mb-1.5">体脂率（可选）</label><input class="input" type="number" step="0.1" id="in-fat" placeholder="22.8"></div>
-        <div><label class="text-[11px] text-slate-400 block mb-1.5">肌肉量（可选）</label><input class="input" type="number" step="0.1" id="in-muscle" placeholder="48.6"></div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1.5">体脂率（可选）</label>
+          <div class="num-stepper-sm">
+            <button class="qty-btn" onclick="numStep('in-fat',-0.1,0.1)">−</button>
+            <input class="input" type="number" step="0.1" id="in-fat" placeholder="22.8">
+            <button class="qty-btn" onclick="numStep('in-fat',0.1,0.1)">+</button>
+          </div>
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1.5">肌肉量（可选）</label>
+          <div class="num-stepper-sm">
+            <button class="qty-btn" onclick="numStep('in-muscle',-0.1,0.1)">−</button>
+            <input class="input" type="number" step="0.1" id="in-muscle" placeholder="48.6">
+            <button class="qty-btn" onclick="numStep('in-muscle',0.1,0.1)">+</button>
+          </div>
+        </div>
       </div>
       <label class="text-[11px] text-slate-400 block mt-4 mb-1.5">备注（可选，0-50 字）</label>
       <input class="input" id="in-note" maxlength="50" placeholder="训练后 / 早起 / 来月经 / 大餐后...">
@@ -1577,13 +1624,23 @@ function sheetTemplate(type, payload){
       ${dateRow('bm-date')}
       <p class="text-[11px] text-slate-400 text-center mt-1">建议晨起空腹、放松状态测量 · 单位 cm</p>
       <div class="grid grid-cols-2 gap-3 mt-4">
-        <div><p class="text-[11px] text-slate-400 mb-1.5">腰围</p><input class="input" type="number" step="0.1" id="bm-waist" value="${last.waist||''}" placeholder="78.5"></div>
-        <div><p class="text-[11px] text-slate-400 mb-1.5">胸围</p><input class="input" type="number" step="0.1" id="bm-chest" value="${last.chest||''}" placeholder="96.0"></div>
-        <div><p class="text-[11px] text-slate-400 mb-1.5">臀围</p><input class="input" type="number" step="0.1" id="bm-hip" value="${last.hip||''}" placeholder="94.2"></div>
-        <div><p class="text-[11px] text-slate-400 mb-1.5">大腿</p><input class="input" type="number" step="0.1" id="bm-thigh" value="${last.thigh||''}" placeholder="55.8"></div>
-        <div><p class="text-[11px] text-slate-400 mb-1.5">手臂</p><input class="input" type="number" step="0.1" id="bm-arm" value="${last.arm||''}" placeholder="32.0"></div>
-        <div><p class="text-[11px] text-slate-400 mb-1.5">颈围</p><input class="input" type="number" step="0.1" id="bm-neck" value="${last.neck||''}" placeholder="36.0"></div>
-        <div><p class="text-[11px] text-slate-400 mb-1.5">小腿</p><input class="input" type="number" step="0.1" id="bm-calf" value="${last.calf||''}" placeholder="36.0"></div>
+        ${[
+          {k:'waist', n:'腰围', ph:'78.5'},
+          {k:'chest', n:'胸围', ph:'96.0'},
+          {k:'hip', n:'臀围', ph:'94.2'},
+          {k:'thigh', n:'大腿', ph:'55.8'},
+          {k:'arm', n:'手臂', ph:'32.0'},
+          {k:'neck', n:'颈围', ph:'36.0'},
+          {k:'calf', n:'小腿', ph:'36.0'}
+        ].map(it=>`
+          <div>
+            <p class="text-[11px] text-slate-400 mb-1.5">${it.n}</p>
+            <div class="num-stepper-sm">
+              <button class="qty-btn" onclick="numStep('bm-${it.k}',-0.5,1)">−</button>
+              <input class="input" type="number" step="0.1" id="bm-${it.k}" value="${last[it.k]||''}" placeholder="${it.ph}">
+              <button class="qty-btn" onclick="numStep('bm-${it.k}',0.5,1)">+</button>
+            </div>
+          </div>`).join('')}
       </div>
       <p class="text-[10px] text-slate-500 mt-3">空着的部位不会保存，可分次填写</p>
       <button class="btn-primary mt-4" onclick="saveBodyMeasure()">保存</button>
@@ -1736,7 +1793,11 @@ function exTabContent(tab){
         </div>`).join('')}
       </div>
       <p class="text-[11px] text-slate-400 mt-4 mb-2">时长（分钟）</p>
-      <input class="number-input" type="number" id="ex-cardio-min" value="30" oninput="updateCardioPreview()">
+      <div class="num-stepper">
+        <button class="qty-btn" onclick="numStep('ex-cardio-min',-5,1); updateCardioPreview()">−</button>
+        <input class="number-input" type="number" id="ex-cardio-min" value="30" oninput="updateCardioPreview()">
+        <button class="qty-btn" onclick="numStep('ex-cardio-min',5,1); updateCardioPreview()">+</button>
+      </div>
       <p class="text-center text-[11px] mt-2" style="color:var(--accent)">预计消耗 <span id="ex-cardio-cal">${exerciseKcalCalc(CARDIO_TYPES[0].met,30)}</span> kcal</p>
       <button class="btn-primary mt-4" onclick="saveCardio()">保存有氧</button>
       <button class="btn-ghost mt-2" onclick="closeSheet()">取消</button>
@@ -1783,7 +1844,11 @@ function exTabContent(tab){
         </div>`).join('')}
       </div>
       <p class="text-[11px] text-slate-400 mt-4 mb-2">时长（分钟）</p>
-      <input class="number-input" type="number" id="ex-flex-min" value="20" oninput="updateFlexPreview()">
+      <div class="num-stepper">
+        <button class="qty-btn" onclick="numStep('ex-flex-min',-5,1); updateFlexPreview()">−</button>
+        <input class="number-input" type="number" id="ex-flex-min" value="20" oninput="updateFlexPreview()">
+        <button class="qty-btn" onclick="numStep('ex-flex-min',5,1); updateFlexPreview()">+</button>
+      </div>
       <p class="text-center text-[11px] mt-2" style="color:var(--accent)">预计消耗 <span id="ex-flex-cal">${exerciseKcalCalc(FLEX_TYPES[0].met,20)}</span> kcal</p>
       <button class="btn-primary mt-4" onclick="saveFlex()">保存柔韧</button>
       <button class="btn-ghost mt-2" onclick="closeSheet()">取消</button>
@@ -1992,6 +2057,18 @@ function qStep(delta){
   const inp = $('food-qty');
   inp.value = Math.max(0.1, +(parseFloat(inp.value||1) + delta).toFixed(1));
   qPreview();
+}
+// 通用数字 stepper：增减任意 input
+function numStep(id, delta, decimals){
+  const inp = $(id); if(!inp) return;
+  const cur = parseFloat(inp.value);
+  const base = isNaN(cur) ? 0 : cur;
+  let next = +(base + delta).toFixed(decimals||0);
+  const min = inp.min !== '' ? parseFloat(inp.min) : null;
+  if(min !== null && !isNaN(min) && next < min) next = min;
+  if(next < 0) next = 0;
+  inp.value = next;
+  inp.dispatchEvent(new Event('input', {bubbles:true}));
 }
 function qSet(v){
   $('food-qty').value = v;
