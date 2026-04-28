@@ -77,10 +77,10 @@
     padding:8px 16px 24px; background:rgba(11,15,20,.85);
     backdrop-filter:blur(24px); border-top:1px solid rgba(255,255,255,.04);
     display:flex; align-items:center; z-index:40; }
-  .tab-item{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
-    color:var(--muted); font-size:10px; font-weight:600; cursor:pointer;
+  .tab-item{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;
+    color:var(--muted); font-size:9px; font-weight:600; cursor:pointer;
     background:transparent; border:none; padding:6px 0; transition:color .2s; }
-  .tab-item i{ font-size:21px; }
+  .tab-item i{ font-size:19px; }
   .tab-item.active{ color:var(--primary); }
   .tab-item:active{ transform:scale(.92); }
   .fab{ position:absolute; bottom:38px; left:50%; transform:translateX(-50%);
@@ -547,23 +547,10 @@
     <div class="scroll">
       <div class="flex items-center justify-between pt-3">
         <div>
-          <p class="text-[11px] text-slate-400">今日记录</p>
+          <p class="text-[11px] text-slate-400">今日打卡</p>
           <h2 class="text-2xl font-black" id="plan-date">--</h2>
         </div>
       </div>
-
-      <!-- v14: 顶层模式切换：打卡记录 / 训记 -->
-      <div class="seg mt-3" id="plan-mode-seg" style="background:rgba(255,255,255,.04); padding:3px;">
-        <button class="on" data-mode="punch" onclick="switchPlanMode('punch')">
-          <i class="lucide lucide-clipboard-list" style="font-size:13px; margin-right:4px"></i>打卡记录
-        </button>
-        <button data-mode="training" onclick="switchPlanMode('training')">
-          <i class="lucide lucide-dumbbell" style="font-size:13px; margin-right:4px"></i>训记
-        </button>
-      </div>
-
-      <!-- 模式 1：打卡记录（原内容） -->
-      <div id="plan-punch-area">
 
       <!-- 营养总览 -->
       <div class="card mt-4 p-4">
@@ -590,9 +577,9 @@
         </div>
       </div>
 
+      <!-- v15: 删运动 segmented，剩 3 类 -->
       <div class="seg mt-4" id="rec-seg">
         <button class="on" data-cat="food">饮食</button>
-        <button data-cat="exercise">运动</button>
         <button data-cat="body">身体</button>
         <button data-cat="life">生活</button>
       </div>
@@ -612,75 +599,196 @@
           <button class="flex-1 py-2 rounded-lg text-xs font-semibold" style="background:rgba(91,157,255,.15); color:var(--blue); border:none; cursor:pointer" onclick="addWater(500)">+ 500ml</button>
         </div>
       </div>
+    </div>
+  </div>
 
-      </div><!-- /plan-punch-area -->
+  <!-- ============================================================
+       v15 训练 tab（统一所有运动相关功能）
+       ============================================================ -->
+  <div class="screen" id="screen-training">
+    <div class="scroll">
+      <!-- Hero · 开始训练大按钮 -->
+      <div class="mt-3">
+        <p class="text-[11px] text-slate-400">训练中心</p>
+        <h2 class="text-2xl font-black mt-0.5" id="tr-hero-title">💪 准备开始</h2>
+        <p class="text-[11px] text-slate-400 mt-1" id="tr-hero-sub">--</p>
+      </div>
 
-      <!-- 模式 2：训记（v14 新增） -->
-      <div id="plan-training-area" style="display:none">
+      <button onclick="openStartWorkoutSheet()" class="mt-3 w-full py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 grad-primary text-white" style="border:none; cursor:pointer; box-shadow:0 8px 24px rgba(255,122,69,.35), inset 0 1px 0 rgba(255,255,255,.18);">
+        <i class="lucide lucide-play" style="font-size:18px"></i>
+        开始训练
+      </button>
 
-        <!-- 概览卡 -->
-        <div class="card mt-4 p-4 grad-bg">
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="text-[11px] text-slate-400">最近 30 天训记</p>
-              <p class="text-2xl font-black mt-0.5 number-tabular"><span id="tr-days">0</span><span class="text-xs text-slate-400 font-normal"> 天</span></p>
-            </div>
-            <span class="pill" style="background:rgba(255,122,69,.15); color:var(--primary)">PR <span id="tr-pr-30d">0</span> 次</span>
+      <!-- 概览卡 -->
+      <div class="card mt-4 p-4 grad-bg">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-[11px] text-slate-400">最近 30 天</p>
+            <p class="text-2xl font-black mt-0.5 number-tabular"><span id="tr-days">0</span><span class="text-xs text-slate-400 font-normal"> 天</span></p>
           </div>
-          <div class="grid grid-cols-3 gap-3 mt-4">
-            <div>
-              <p class="text-[10px] text-slate-400">总组数</p>
-              <p class="text-lg font-black number-tabular" id="tr-sets">0</p>
-            </div>
-            <div>
-              <p class="text-[10px] text-slate-400">总训练量</p>
-              <p class="text-lg font-black number-tabular" id="tr-vol">0<span class="text-[10px] text-slate-400 font-normal">k</span></p>
-            </div>
-            <div>
+          <span class="pill" style="background:rgba(255,122,69,.15); color:var(--primary)">PR <span id="tr-pr-30d">0</span> 次</span>
+        </div>
+        <div class="grid grid-cols-3 gap-3 mt-4">
+          <div>
+            <p class="text-[10px] text-slate-400">总组数</p>
+            <p class="text-lg font-black number-tabular" id="tr-sets">0</p>
+          </div>
+          <div>
+            <p class="text-[10px] text-slate-400">总训练量</p>
+            <p class="text-lg font-black number-tabular" id="tr-vol">0<span class="text-[10px] text-slate-400 font-normal">k</span></p>
+          </div>
+          <div>
+            <p class="text-[10px] text-slate-400">总时长</p>
+            <p class="text-lg font-black number-tabular" id="tr-min">0<span class="text-[10px] text-slate-400 font-normal">h</span></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 12 周热力图 -->
+      <div class="card mt-3 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <span class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-calendar-days" style="color:var(--primary); font-size:14px"></i>训练频率（近 12 周）</span>
+          <span class="text-[10px] text-slate-400">少 → 多</span>
+        </div>
+        <div id="tr-heatmap"></div>
+      </div>
+
+      <!-- 部位雷达图 -->
+      <div class="card mt-3 p-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-target" style="color:var(--accent); font-size:14px"></i>部位训练量分布</span>
+          <span class="text-[10px] text-slate-400">近 30 天</span>
+        </div>
+        <div style="height:200px"><canvas id="tr-radar"></canvas></div>
+      </div>
+
+      <!-- PR 趋势 -->
+      <div class="card mt-3 p-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-trending-up" style="color:var(--primary); font-size:14px"></i>主项 PR 进步</span>
+          <select id="tr-pr-select" onchange="renderTrainingPRChart()" style="background:rgba(255,255,255,.05); border:none; color:#e8eaed; font-size:11px; padding:4px 8px; border-radius:6px; outline:none"></select>
+        </div>
+        <div style="height:160px"><canvas id="tr-pr-chart"></canvas></div>
+      </div>
+
+      <!-- 训练历史 -->
+      <div class="card mt-3 p-4">
+        <div class="flex items-center justify-between mb-3">
+          <span class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-list" style="color:var(--blue); font-size:14px"></i>训练历史</span>
+          <span class="text-[10px] text-slate-400" id="tr-history-count">--</span>
+        </div>
+        <div id="tr-history-list" class="space-y-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       v15 训练中全屏页（screen-workout）
+       不是 tab，而是覆盖在所有 screen 之上的全屏会话
+       ============================================================ -->
+  <div class="screen" id="screen-workout" style="z-index:30">
+    <div class="scroll" style="padding-bottom:120px">
+      <!-- Sticky 顶部计时 -->
+      <div style="position:sticky; top:-12px; z-index:5; background:linear-gradient(180deg, var(--bg) 0%, var(--bg) 80%, transparent 100%); padding:10px 0;">
+        <div class="flex items-center justify-between">
+          <button onclick="confirmEndWorkout()" class="flex items-center gap-1 text-xs font-semibold text-slate-400" style="background:transparent; border:none; cursor:pointer">
+            <i class="lucide lucide-x" style="font-size:14px"></i> 结束训练
+          </button>
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] text-slate-400">已练</span>
+            <span class="font-black text-base number-tabular" id="wk-elapsed" style="color:var(--primary)">00:00</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 训练标题 / 进度 -->
+      <div class="mt-1">
+        <p class="text-[11px] text-slate-400" id="wk-template-name">自由训练</p>
+        <p class="text-base font-black mt-0.5">动作 <span id="wk-cur-idx">1</span> / <span id="wk-total-ex">1</span></p>
+      </div>
+
+      <!-- 当前动作卡 -->
+      <div id="wk-current-card" class="mt-3"></div>
+
+      <!-- 待完成动作列表 -->
+      <div id="wk-upcoming" class="mt-4"></div>
+
+      <!-- 添加动作按钮 -->
+      <button onclick="openExercisePickerForWorkout()" class="mt-4 w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2" style="background:rgba(255,255,255,.04); color:var(--blue); border:1.5px dashed rgba(91,157,255,.4); cursor:pointer">
+        <i class="lucide lucide-plus" style="font-size:14px"></i> 添加动作
+      </button>
+
+      <!-- 完成训练 -->
+      <button onclick="finishWorkout()" class="mt-3 w-full py-3 rounded-xl font-black text-sm grad-primary text-white" style="border:none; cursor:pointer; box-shadow:0 4px 12px rgba(255,122,69,.3)">
+        <i class="lucide lucide-check" style="font-size:14px; margin-right:4px"></i> 完成训练
+      </button>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       v15 训练总结全屏页（screen-summary）
+       ============================================================ -->
+  <div class="screen" id="screen-summary" style="z-index:30">
+    <div class="scroll" style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:80vh">
+      <div class="text-center" style="max-width:340px;">
+        <div style="font-size:64px">🎉</div>
+        <h2 class="text-2xl font-black mt-2">训练完成！</h2>
+        <p class="text-xs text-slate-400 mt-1" id="sm-date">--</p>
+
+        <div class="card mt-5 p-5 grad-bg" style="text-align:left">
+          <div class="grid grid-cols-3 gap-2">
+            <div class="text-center">
               <p class="text-[10px] text-slate-400">总时长</p>
-              <p class="text-lg font-black number-tabular" id="tr-min">0<span class="text-[10px] text-slate-400 font-normal">h</span></p>
+              <p class="text-lg font-black number-tabular mt-0.5" id="sm-duration">--</p>
+            </div>
+            <div class="text-center" style="border-left:1px solid rgba(255,255,255,.06); border-right:1px solid rgba(255,255,255,.06)">
+              <p class="text-[10px] text-slate-400">总组数</p>
+              <p class="text-lg font-black number-tabular mt-0.5" id="sm-sets">--</p>
+            </div>
+            <div class="text-center">
+              <p class="text-[10px] text-slate-400">训练量</p>
+              <p class="text-lg font-black number-tabular mt-0.5" id="sm-volume">--</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2 mt-3" style="padding-top:12px; border-top:1px solid rgba(255,255,255,.06)">
+            <div>
+              <p class="text-[10px] text-slate-400">动作</p>
+              <p class="text-base font-bold mt-0.5" id="sm-exercises">--</p>
+            </div>
+            <div>
+              <p class="text-[10px] text-slate-400">部位</p>
+              <p class="text-base font-bold mt-0.5" id="sm-parts">--</p>
             </div>
           </div>
         </div>
 
-        <!-- 训练热力图（最近 12 周） -->
-        <div class="card mt-3 p-4">
-          <div class="flex items-center justify-between mb-3">
-            <span class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-calendar-days" style="color:var(--primary); font-size:14px"></i>训练频率（近 12 周）</span>
-            <span class="text-[10px] text-slate-400" id="tr-heatmap-legend">少 → 多</span>
-          </div>
-          <div id="tr-heatmap"></div>
+        <div class="mt-3" id="sm-pr-list"></div>
+
+        <button onclick="closeSummary()" class="mt-6 w-full py-3 rounded-xl font-black text-sm grad-primary text-white" style="border:none; cursor:pointer">
+          <i class="lucide lucide-check" style="font-size:14px; margin-right:4px"></i> 完成
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       v15 组间休息倒计时全屏 modal（screen-rest）
+       ============================================================ -->
+  <div class="screen" id="screen-rest" style="z-index:32">
+    <div class="scroll" style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:80vh">
+      <div class="text-center">
+        <p class="text-xs text-slate-400">组间休息</p>
+        <div class="number-tabular mt-3" style="font-size:80px; font-weight:900; color:var(--primary); letter-spacing:-2px;" id="rest-clock">02:00</div>
+        <div style="width:240px; height:6px; border-radius:3px; background:rgba(255,255,255,.08); margin:12px auto; overflow:hidden">
+          <div id="rest-bar" style="height:100%; background:linear-gradient(90deg, var(--primary), #FF9D6F); width:100%; transition:width 1s linear; border-radius:3px"></div>
         </div>
-
-        <!-- 部位分布雷达图 -->
-        <div class="card mt-3 p-4">
-          <div class="flex items-center justify-between mb-2">
-            <span class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-target" style="color:var(--accent); font-size:14px"></i>部位训练量分布</span>
-            <span class="text-[10px] text-slate-400">近 30 天</span>
-          </div>
-          <div style="height:200px"><canvas id="tr-radar"></canvas></div>
+        <p class="text-xs text-slate-400 mt-3" id="rest-next">下一组</p>
+        <div class="flex gap-3 mt-6 justify-center">
+          <button onclick="adjustRest(-15)" class="px-4 py-2 rounded-xl text-xs font-bold" style="background:rgba(255,255,255,.06); color:#e8eaed; border:none; cursor:pointer">−15s</button>
+          <button onclick="adjustRest(15)" class="px-4 py-2 rounded-xl text-xs font-bold" style="background:rgba(255,255,255,.06); color:#e8eaed; border:none; cursor:pointer">+15s</button>
+          <button onclick="skipRest()" class="px-5 py-2 rounded-xl text-xs font-black grad-primary text-white" style="border:none; cursor:pointer">跳过</button>
         </div>
-
-        <!-- 主项 PR 趋势 -->
-        <div class="card mt-3 p-4">
-          <div class="flex items-center justify-between mb-2">
-            <span class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-trending-up" style="color:var(--primary); font-size:14px"></i>主项 PR 进步</span>
-            <select id="tr-pr-select" onchange="renderTrainingPRChart()" style="background:rgba(255,255,255,.05); border:none; color:#e8eaed; font-size:11px; padding:4px 8px; border-radius:6px; outline:none"></select>
-          </div>
-          <div style="height:160px"><canvas id="tr-pr-chart"></canvas></div>
-        </div>
-
-        <!-- 训练历史列表 -->
-        <div class="card mt-3 p-4">
-          <div class="flex items-center justify-between mb-3">
-            <span class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-list" style="color:var(--blue); font-size:14px"></i>训练历史</span>
-            <span class="text-[10px] text-slate-400" id="tr-history-count">--</span>
-          </div>
-          <div id="tr-history-list" class="space-y-2"></div>
-        </div>
-
-      </div><!-- /plan-training-area -->
-
+      </div>
     </div>
   </div>
 
@@ -791,12 +899,13 @@
     </div>
   </div>
 
-  <!-- 底部 TabBar -->
+  <!-- 底部 TabBar (v15: 6 项) -->
   <div class="tabbar" id="tabbar" style="display:none">
     <button class="tab-item active" data-tab="home"><i class="lucide lucide-home"></i><span>首页</span></button>
     <button class="tab-item" data-tab="data"><i class="lucide lucide-bar-chart-3"></i><span>数据</span></button>
-    <div style="width:60px"></div>
-    <button class="tab-item" data-tab="plan"><i class="lucide lucide-clipboard-list"></i><span>计划</span></button>
+    <button class="tab-item" data-tab="training"><i class="lucide lucide-dumbbell"></i><span>训练</span></button>
+    <div style="width:54px"></div>
+    <button class="tab-item" data-tab="plan"><i class="lucide lucide-clipboard-list"></i><span>打卡</span></button>
     <button class="tab-item" data-tab="me"><i class="lucide lucide-user"></i><span>我的</span></button>
   </div>
   <button class="fab" id="fab" onclick="openSheet('quick')" style="display:none"><i class="lucide lucide-plus"></i></button>
@@ -828,7 +937,9 @@ let cache = {                // 内存缓存所有用户数据
   customFoods:[], achievements:[], bodyMeasures:[], userStatus:[],
   favoriteFoods:[], mealCombos:[],
   // v14 训记三层
-  workouts:[], workoutExercises:[], workoutSets:[]
+  workouts:[], workoutExercises:[], workoutSets:[],
+  // v15 训练模板
+  workoutTemplates:[]
 };
 
 // ========== 用户状态定义 ==========
@@ -929,7 +1040,7 @@ async function loadProfile(){
 
 async function loadAll(){
   const uid = session.user.id;
-  const [w,f,e,wt,sl,md,cf,ach,bm,wk,wex,wst,us,fav,mc] = await Promise.all([
+  const [w,f,e,wt,sl,md,cf,ach,bm,wk,wex,wst,us,fav,mc,wtpl] = await Promise.all([
     sb.from('weights').select('*').eq('user_id',uid).order('date'),
     sb.from('food_records').select('*').eq('user_id',uid).order('date'),
     sb.from('exercise_records').select('*').eq('user_id',uid).order('date'),
@@ -945,7 +1056,9 @@ async function loadAll(){
     sb.from('workout_sets').select('*').eq('user_id',uid).order('set_no'),
     sb.from('user_status').select('*').eq('user_id',uid).order('start_date', {ascending:false}),
     sb.from('favorite_foods').select('*').eq('user_id',uid),
-    sb.from('meal_combos').select('*').eq('user_id',uid).order('created_at', {ascending:false})
+    sb.from('meal_combos').select('*').eq('user_id',uid).order('created_at', {ascending:false}),
+    // v15: 训练模板（preset + 用户自建，靠 RLS 自动过滤）
+    sb.from('workout_templates').select('*').order('hot',{ascending:false})
   ]);
   cache.weights = w.data || [];
   cache.food = f.data || [];
@@ -964,6 +1077,7 @@ async function loadAll(){
   // 新表可能未建：失败时静默用空数组（避免阻塞整个加载）
   cache.favoriteFoods = (fav && !fav.error) ? (fav.data || []) : [];
   cache.mealCombos = (mc && !mc.error) ? (mc.data || []) : [];
+  cache.workoutTemplates = (wtpl && !wtpl.error) ? (wtpl.data || []) : [];
 }
 
 function showApp(){
@@ -1391,6 +1505,7 @@ document.querySelectorAll('.tab-item').forEach(t=>{
     $('screen-'+tab).classList.add('active');
     if(tab==='data') setTimeout(()=>renderCharts(30), 50);
     if(tab==='plan') renderRecordList(currentCat());
+    if(tab==='training') setTimeout(renderTrainingPage, 50);
   });
 });
 document.addEventListener('click',(e)=>{
@@ -1467,20 +1582,113 @@ function sheetTemplate(type, payload){
       ${[
         {t:'weight', n:'体重', i:'scale', bg:'rgba(255,107,139,.15)', c:'var(--pink)'},
         {t:'food', n:'饮食', i:'utensils', bg:'rgba(255,122,69,.15)', c:'var(--primary)'},
-        {t:'exercise', n:'运动', i:'dumbbell', bg:'rgba(34,211,167,.15)', c:'var(--accent)'},
+        {t:'__training__', n:'开始训练', i:'dumbbell', bg:'rgba(34,211,167,.15)', c:'var(--accent)'},
         {t:'water', n:'饮水', i:'droplets', bg:'rgba(91,157,255,.15)', c:'var(--blue)'},
         {t:'body-measure', n:'围度', i:'ruler', bg:'rgba(180,120,255,.15)', c:'#B478FF'},
         {t:'sleep', n:'睡眠', i:'moon-star', bg:'rgba(255,200,61,.15)', c:'var(--yellow)'},
         {t:'mood', n:'情绪', i:'smile', bg:'rgba(255,77,109,.15)', c:'#FF4D6D'},
         {t:'user-status', n:'切换状态', i:'compass', bg:'rgba(34,211,167,.15)', c:'var(--accent)'}
-      ].map(b=>`
-        <div class="quick-btn" onclick="openSheet('${b.t}')">
+      ].map(b=>{
+        const onclick = (b.t==='__training__')
+          ? "closeSheet();openStartWorkoutSheet()"
+          : ("openSheet('"+b.t+"')");
+        return `
+        <div class="quick-btn" onclick="${onclick}">
           <div class="meal-icon" style="background:${b.bg}; color:${b.c}; width:46px; height:46px; border-radius:14px"><i class="lucide lucide-${b.i}" style="font-size:20px"></i></div>
           <span class="text-xs font-semibold">${b.n}</span>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
     </div>
     <button class="btn-ghost mt-4" onclick="closeSheet()">取消</button>
   `;
+
+  if(type==='start-workout'){
+    const tplsPreset = (cache.workoutTemplates||[]).filter(t=>t.is_preset).sort((a,b)=>(b.hot||0)-(a.hot||0));
+    const tplsMine = (cache.workoutTemplates||[]).filter(t=>!t.is_preset);
+    const lastWorkout = (cache.workouts||[])[0];
+    return `
+      <h3 class="text-lg font-black text-center">开始训练</h3>
+      <p class="text-[11px] text-slate-400 text-center mt-1">选择训练方式</p>
+
+      <div class="mt-4 space-y-2">
+        <div onclick="startWorkout({type:'free'})" class="card p-3 flex items-center gap-3" style="cursor:pointer; background:linear-gradient(135deg, rgba(255,122,69,.10), rgba(255,122,69,.04));border:1px solid rgba(255,122,69,.25)">
+          <div class="meal-icon" style="background:rgba(255,122,69,.2); color:var(--primary); width:42px; height:42px; border-radius:12px"><i class="lucide lucide-zap"></i></div>
+          <div class="flex-1">
+            <p class="text-sm font-black">🆓 自由训练</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">空白开始，边练边加动作</p>
+          </div>
+          <i class="lucide lucide-chevron-right text-slate-500"></i>
+        </div>
+
+        ${lastWorkout?`
+        <div onclick="startWorkout({type:'repeat'})" class="card p-3 flex items-center gap-3" style="cursor:pointer">
+          <div class="meal-icon" style="background:rgba(91,157,255,.15); color:var(--blue); width:42px; height:42px; border-radius:12px"><i class="lucide lucide-rotate-ccw"></i></div>
+          <div class="flex-1">
+            <p class="text-sm font-black">🔄 重复上次训练</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">${lastWorkout.date} · ${(lastWorkout.body_parts||[]).map(p=>STRENGTH_LIBRARY[p]?.name||p).join('/')||'--'}</p>
+          </div>
+          <i class="lucide lucide-chevron-right text-slate-500"></i>
+        </div>`:''}
+
+        ${tplsMine.length?`
+        <p class="text-[10px] text-slate-400 mt-3 mb-1">📋 我的模板</p>
+        ${tplsMine.map(t=>`
+          <div onclick="startWorkout({type:'template',tplId:${t.id}})" class="card p-3 flex items-center gap-3" style="cursor:pointer">
+            <div class="meal-icon" style="background:rgba(180,120,255,.15); color:#B478FF; width:42px; height:42px; border-radius:12px"><i class="lucide lucide-bookmark"></i></div>
+            <div class="flex-1">
+              <p class="text-sm font-bold">${t.name}</p>
+              <p class="text-[10px] text-slate-400 mt-0.5">${(t.exercises||[]).length} 个动作</p>
+            </div>
+            <i class="lucide lucide-chevron-right text-slate-500"></i>
+          </div>`).join('')}`:''}
+
+        ${tplsPreset.length?`
+        <p class="text-[10px] text-slate-400 mt-3 mb-1">🌟 系统模板</p>
+        ${tplsPreset.map(t=>`
+          <div onclick="startWorkout({type:'template',tplId:${t.id}})" class="card p-3 flex items-center gap-3" style="cursor:pointer">
+            <div class="meal-icon" style="background:rgba(255,200,61,.15); color:var(--yellow); width:42px; height:42px; border-radius:12px"><i class="lucide lucide-star"></i></div>
+            <div class="flex-1">
+              <p class="text-sm font-bold">${t.name}</p>
+              <p class="text-[10px] text-slate-400 mt-0.5">${(t.body_parts||[]).map(p=>STRENGTH_LIBRARY[p]?.name||p).join(' · ')} · ${(t.exercises||[]).length} 动作</p>
+            </div>
+            <i class="lucide lucide-chevron-right text-slate-500"></i>
+          </div>`).join('')}`:''}
+      </div>
+
+      <button class="btn-ghost mt-4" onclick="closeSheet()">取消</button>
+    `;
+  }
+
+  if(type==='add-exercise-to-workout'){
+    const part = exState.part || 'chest';
+    const parts = Object.keys(STRENGTH_LIBRARY);
+    return `
+      <h3 class="text-lg font-black text-center">添加动作</h3>
+      <p class="text-[11px] text-slate-400 text-center mt-1">从动作库选择</p>
+      <div class="grid grid-cols-4 gap-2 mt-4">
+        ${parts.map(p=>{
+          const lib = STRENGTH_LIBRARY[p];
+          return `<div class="quick-btn ${part===p?'on':''}" style="padding:10px 4px" onclick="exState.part='${p}'; openSheet('add-exercise-to-workout')">
+            <div class="meal-icon" style="background:${part===p?'rgba(255,122,69,.18)':'rgba(255,255,255,.04)'}; color:${part===p?'var(--primary)':'#94a3b8'}; width:34px; height:34px"><i class="lucide lucide-${lib.icon}" style="font-size:14px"></i></div>
+            <span class="text-[11px] font-semibold">${lib.name}</span>
+          </div>`;
+        }).join('')}
+      </div>
+      <p class="text-[11px] text-slate-400 mt-3 mb-2">${STRENGTH_LIBRARY[part].name}（${STRENGTH_LIBRARY[part].items.length}）</p>
+      <div class="space-y-1.5 max-h-72 overflow-y-auto" style="scrollbar-width:none">
+        ${STRENGTH_LIBRARY[part].items.map(it=>`
+          <div onclick="addExerciseToCurrentWorkout('${part}','${it.id}','${it.name}')" class="food-row" style="cursor:pointer">
+            <div class="meal-icon" style="background:rgba(255,122,69,.10); color:var(--primary); width:32px; height:32px"><i class="lucide lucide-dumbbell" style="font-size:13px"></i></div>
+            <div class="flex-1">
+              <p class="text-sm font-semibold">${it.name}</p>
+              <p class="text-[10px] text-slate-400">${it.equip}${it.hot>0?' · 用过 '+it.hot+'次':''}</p>
+            </div>
+            <i class="lucide lucide-plus" style="color:var(--primary)"></i>
+          </div>`).join('')}
+      </div>
+      <button class="btn-ghost mt-3" onclick="closeSheet()">取消</button>
+    `;
+  }
 
   if(type==='weight'){
     const last = cache.weights[cache.weights.length-1]?.kg || profile?.start_weight || 68;
@@ -2528,22 +2736,14 @@ function nowHHMM(){
 }
 
 // ============================================================
-// v14 「训记」子页面（计划页 → segmented 切换）
+// v15 训练 tab（独立模块，含训练前/中/后全流程）
 // ============================================================
 let _trChartRadar = null;
 let _trChartPR = null;
 
-function switchPlanMode(mode){
-  document.querySelectorAll('#plan-mode-seg button').forEach(b=>{
-    b.classList.toggle('on', b.dataset.mode===mode);
-  });
-  $('plan-punch-area').style.display = (mode==='punch') ? '' : 'none';
-  $('plan-training-area').style.display = (mode==='training') ? '' : 'none';
-  if(mode==='training') setTimeout(renderTrainingPage, 50);
-}
-
-// 主渲染
+// 主渲染（每次切到训练 tab 时调用）
 function renderTrainingPage(){
+  renderTrainingHero();
   renderTrainingOverview();
   renderTrainingHeatmap();
   renderTrainingRadar();
@@ -2794,6 +2994,502 @@ function renderTrainingHistory(){
     `;
   }).join('');
   $('tr-history-list').innerHTML = html;
+}
+
+// ===== Hero 区：周/月统计 =====
+function renderTrainingHero(){
+  const wks = cache.workouts || [];
+  const today = new Date(); today.setHours(0,0,0,0);
+  const monthAgo = new Date(today.getTime() - 30*86400000).toISOString().slice(0,10);
+  const monthCnt = wks.filter(w=>w.date>=monthAgo).length;
+
+  // 已坚持周数（基于第一次训练）
+  const earliest = wks.length ? wks[wks.length-1].date : null;
+  let weeks = 0;
+  if(earliest){
+    weeks = Math.floor((today - new Date(earliest))/(7*86400000));
+  }
+  const lastDate = wks.length ? wks[0].date : null;
+  const lastDay = lastDate ? Math.floor((today - new Date(lastDate))/86400000) : null;
+  let sub;
+  if(!wks.length) sub = '还没有训练记录，开启第一次吧';
+  else if(lastDay===0) sub = `今天已训练 · 已坚持 ${weeks} 周`;
+  else if(lastDay===1) sub = `昨天训过 · 本月 ${monthCnt} 次`;
+  else sub = `已 ${lastDay} 天没练 · 本月 ${monthCnt} 次`;
+  $('tr-hero-sub').textContent = sub;
+}
+
+// ============================================================
+// v15 训练 session（训练前/中/后全流程）
+// ============================================================
+let workoutSession = null;
+// {
+//   workoutId, startedAt, templateName,
+//   exercises: [{ id_local, exercise_id, exercise_name, body_part,
+//                 ord, target_sets, target_reps, target_weight,
+//                 sets: [{set_no, weight_kg, reps, rest_sec, completed, isPR, db_id}] }],
+//   currentExIdx: 0,
+//   timerInterval, restInterval, restRemaining, restTotal, restNextLabel
+// }
+
+const REST_DEFAULT_SEC = 120;
+
+// ===== 「开始训练」入口 sheet =====
+function openStartWorkoutSheet(){
+  openSheet('start-workout');
+}
+
+// ===== 选模板/自由训练后启动 session =====
+async function startWorkout(source){
+  // source = { type:'free' } | { type:'template', tplId } | { type:'repeat' }
+  let exercises = [];
+  let templateName = '自由训练';
+
+  if(source.type === 'template'){
+    const tpl = (cache.workoutTemplates||[]).find(t=>t.id===source.tplId);
+    if(!tpl){ toast('模板不存在','error'); return; }
+    templateName = tpl.name;
+    exercises = (tpl.exercises||[]).map((e,idx)=>({
+      id_local: 'ex_'+Date.now()+'_'+idx,
+      exercise_id: e.exercise_id,
+      exercise_name: e.name,
+      body_part: e.body_part,
+      ord: idx+1,
+      target_sets: e.target_sets || 4,
+      target_reps: e.target_reps || 10,
+      target_weight: e.target_weight || 0,
+      sets: [],
+    }));
+  } else if(source.type === 'repeat'){
+    // 复制最近一次 workout 的动作（不含组数据）
+    const last = cache.workouts && cache.workouts[0];
+    if(!last){ toast('还没有历史训练','error'); return; }
+    const exes = (cache.workoutExercises||[]).filter(e=>e.workout_id===last.id).sort((a,b)=>a.ord-b.ord);
+    templateName = '重复 ' + last.date;
+    exercises = exes.map((e,idx)=>({
+      id_local: 'ex_'+Date.now()+'_'+idx,
+      exercise_id: e.exercise_id,
+      exercise_name: e.exercise_name,
+      body_part: e.body_part,
+      ord: idx+1,
+      target_sets: e.set_count || 4,
+      target_reps: 10,
+      target_weight: 0,
+      sets: [],
+    }));
+  }
+  // type='free' 时 exercises = []
+
+  // 1. 在 Supabase 创建 workout 行
+  const today = new Date().toISOString().slice(0,10);
+  const startedAt = new Date().toISOString();
+  const { data: wData, error: wErr } = await sb.from('workouts').insert({
+    user_id: session.user.id,
+    date: today,
+    started_at: startedAt,
+    source: 'app',
+    body_parts: [...new Set(exercises.map(e=>e.body_part).filter(Boolean))],
+    total_volume: 0, total_sets: 0,
+  }).select().single();
+  if(wErr){ toast('创建训练失败：'+wErr.message,'error'); return; }
+
+  workoutSession = {
+    workoutId: wData.id,
+    startedAt: Date.now(),
+    templateName,
+    exercises,
+    currentExIdx: 0,
+    timerInterval: null,
+    restInterval: null,
+    restRemaining: 0,
+    restTotal: 0,
+    restNextLabel: '',
+  };
+  cache.workouts.unshift(wData); // 插到首位
+
+  closeSheet();
+  enterWorkoutScreen();
+}
+
+function enterWorkoutScreen(){
+  // 隐藏所有 screen，显示 workout
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $('screen-workout').classList.add('active');
+  // 隐藏 tabbar 和 fab
+  $('tabbar').style.display = 'none';
+  $('fab').style.display = 'none';
+  $('wk-template-name').textContent = workoutSession.templateName;
+  startWorkoutTimer();
+  renderWorkoutScreen();
+}
+
+function startWorkoutTimer(){
+  if(workoutSession.timerInterval) clearInterval(workoutSession.timerInterval);
+  workoutSession.timerInterval = setInterval(()=>{
+    const sec = Math.floor((Date.now() - workoutSession.startedAt)/1000);
+    const m = Math.floor(sec/60), s = sec%60;
+    const el = $('wk-elapsed');
+    if(el) el.textContent = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  }, 500);
+}
+
+function renderWorkoutScreen(){
+  const ws = workoutSession;
+  if(!ws) return;
+  $('wk-cur-idx').textContent = ws.currentExIdx + 1;
+  $('wk-total-ex').textContent = Math.max(ws.exercises.length, 1);
+
+  // 当前动作卡
+  if(!ws.exercises.length){
+    $('wk-current-card').innerHTML = `
+      <div class="card p-5 text-center" style="border:1.5px dashed rgba(255,122,69,.4)">
+        <i class="lucide lucide-plus-circle" style="color:var(--primary); font-size:28px"></i>
+        <p class="text-xs text-slate-400 mt-2">还没有动作</p>
+        <p class="text-sm font-bold mt-1">点下方「添加动作」开始</p>
+      </div>`;
+    $('wk-upcoming').innerHTML = '';
+    return;
+  }
+  const ex = ws.exercises[ws.currentExIdx];
+  if(!ex){ $('wk-current-card').innerHTML = ''; return; }
+  const pr = strengthPR(ex.exercise_id);
+  const last = lastSetForExercise(ex.exercise_id);
+  const hint = last ? `上次 ${last.weight_kg}kg×${last.reps||last.duration_sec+'s'}` : (pr ? `PR ${pr}kg` : '首次训练');
+
+  // 默认填值：上一组 > 上次记录 > target
+  const lastSet = ex.sets[ex.sets.length-1];
+  const defWeight = lastSet ? lastSet.weight_kg : (last ? last.weight_kg : (ex.target_weight || 0));
+  const defReps = lastSet ? lastSet.reps : (last ? last.reps : (ex.target_reps || 10));
+  const defRest = lastSet?.rest_sec || REST_DEFAULT_SEC;
+
+  const completedRows = ex.sets.map(s=>`
+    <div class="flex items-center justify-between py-2" style="border-bottom:1px solid rgba(255,255,255,.04)">
+      <span class="text-xs text-slate-400">第 ${s.set_no} 组</span>
+      <span class="text-sm font-bold number-tabular">${s.weight_kg}kg × ${s.reps}次</span>
+      <span class="text-[10px]" style="color:${s.isPR?'#FFC107':'var(--accent)'}">${s.isPR?'🏆 PR':'✓ 完成'}</span>
+    </div>`).join('');
+
+  $('wk-current-card').innerHTML = `
+    <div class="card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <div>
+          <p class="text-xs text-slate-400">${STRENGTH_LIBRARY[ex.body_part]?.name || ''}</p>
+          <p class="text-lg font-black mt-0.5">${ex.exercise_name}</p>
+        </div>
+        <span class="pill" style="background:rgba(255,122,69,.12); color:var(--primary); font-size:10px">${hint}</span>
+      </div>
+      ${completedRows}
+      <div class="mt-3" style="background:rgba(255,122,69,.06); padding:10px; border-radius:10px; border:1px solid rgba(255,122,69,.18)">
+        <p class="text-[10px] text-slate-400 mb-2">第 ${ex.sets.length+1} 组</p>
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <p class="text-[9px] text-slate-400 mb-1">重量</p>
+            <div class="num-stepper-sm">
+              <button class="qty-btn" onclick="numStep('wk-weight',-2.5,1)">−</button>
+              <input class="number-input" type="number" id="wk-weight" value="${defWeight}" step="0.5">
+              <button class="qty-btn" onclick="numStep('wk-weight',2.5,1)">+</button>
+            </div>
+          </div>
+          <div>
+            <p class="text-[9px] text-slate-400 mb-1">次数</p>
+            <div class="num-stepper-sm">
+              <button class="qty-btn" onclick="numStep('wk-reps',-1,0)">−</button>
+              <input class="number-input" type="number" id="wk-reps" value="${defReps}">
+              <button class="qty-btn" onclick="numStep('wk-reps',1,0)">+</button>
+            </div>
+          </div>
+          <div>
+            <p class="text-[9px] text-slate-400 mb-1">休息(s)</p>
+            <div class="num-stepper-sm">
+              <button class="qty-btn" onclick="numStep('wk-rest',-15,0)">−</button>
+              <input class="number-input" type="number" id="wk-rest" value="${defRest}">
+              <button class="qty-btn" onclick="numStep('wk-rest',15,0)">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="flex gap-2 mt-3">
+          <button onclick="saveSetAndRest()" class="flex-1 py-2.5 rounded-lg font-black text-sm grad-primary text-white" style="border:none; cursor:pointer">
+            <i class="lucide lucide-check" style="font-size:13px; margin-right:3px"></i>完成本组
+          </button>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button onclick="skipExercise()" class="flex-1 py-2 rounded-lg text-xs font-bold" style="background:rgba(255,255,255,.05); color:#94a3b8; border:none; cursor:pointer">跳过本动作</button>
+        <button onclick="nextExercise()" class="flex-1 py-2 rounded-lg text-xs font-bold" style="background:rgba(34,211,167,.15); color:var(--accent); border:none; cursor:pointer">下一动作 →</button>
+      </div>
+    </div>
+  `;
+
+  // 待完成列表
+  const upcoming = ws.exercises.slice(ws.currentExIdx+1);
+  if(upcoming.length){
+    $('wk-upcoming').innerHTML = `
+      <p class="text-[11px] text-slate-400 mb-2">待完成（${upcoming.length}）</p>
+      <div class="space-y-1.5">
+        ${upcoming.map((e,i)=>`
+          <div class="flex items-center justify-between py-2 px-3 rounded-lg" style="background:rgba(255,255,255,.03)">
+            <span class="text-xs">${ws.currentExIdx+i+2}. ${e.exercise_name}</span>
+            <span class="text-[10px] text-slate-500">${e.target_sets || '?'}×${e.target_reps || '?'}</span>
+          </div>`).join('')}
+      </div>`;
+  } else {
+    $('wk-upcoming').innerHTML = '';
+  }
+}
+
+async function saveSetAndRest(){
+  const ws = workoutSession;
+  if(!ws) return;
+  const ex = ws.exercises[ws.currentExIdx];
+  if(!ex){ toast('当前没有动作','error'); return; }
+
+  const weight = parseFloat($('wk-weight').value)||0;
+  const reps = parseInt($('wk-reps').value)||0;
+  const rest = parseInt($('wk-rest').value)||REST_DEFAULT_SEC;
+  if(reps < 1){ toast('次数至少 1','error'); return; }
+
+  const setNo = ex.sets.length + 1;
+  // 判 PR
+  const oldPR = strengthPR(ex.exercise_id) || 0;
+  const isPR = weight > 0 && weight > oldPR;
+
+  // 1. 如果该 exercise 还没有 db_id，先创建 workout_exercises
+  let exDbId = ex.db_id;
+  if(!exDbId){
+    const { data: eData, error: eErr } = await sb.from('workout_exercises').insert({
+      workout_id: ws.workoutId,
+      user_id: session.user.id,
+      ord: ex.ord,
+      exercise_id: ex.exercise_id,
+      exercise_name: ex.exercise_name,
+      body_part: ex.body_part,
+      total_volume: 0, set_count: 0,
+    }).select().single();
+    if(eErr){ toast('动作创建失败：'+eErr.message,'error'); return; }
+    exDbId = eData.id;
+    ex.db_id = exDbId;
+    cache.workoutExercises.push(eData);
+  }
+
+  // 2. 写 set
+  const { data: sData, error: sErr } = await sb.from('workout_sets').insert({
+    exercise_pk: exDbId,
+    user_id: session.user.id,
+    set_no: setNo,
+    weight_kg: weight,
+    reps: reps,
+    duration_sec: null,
+    rest_sec: rest,
+    is_pr: isPR,
+  }).select().single();
+  if(sErr){ toast('组数据失败：'+sErr.message,'error'); return; }
+
+  ex.sets.push({
+    set_no: setNo, weight_kg: weight, reps: reps,
+    duration_sec: null, rest_sec: rest, isPR, db_id: sData.id
+  });
+  cache.workoutSets.push(sData);
+
+  // 振动
+  if(navigator.vibrate) navigator.vibrate(50);
+  // 启动休息倒计时
+  enterRestScreen(rest, `${ex.exercise_name} · 第 ${setNo+1} 组`);
+}
+
+function enterRestScreen(seconds, nextLabel){
+  const ws = workoutSession;
+  if(!ws) return;
+  ws.restRemaining = seconds;
+  ws.restTotal = seconds;
+  ws.restNextLabel = nextLabel;
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $('screen-rest').classList.add('active');
+  $('rest-next').textContent = nextLabel;
+  updateRestUI();
+  if(ws.restInterval) clearInterval(ws.restInterval);
+  ws.restInterval = setInterval(()=>{
+    ws.restRemaining -= 1;
+    if(ws.restRemaining <= 0){
+      finishRest();
+    } else {
+      updateRestUI();
+    }
+  }, 1000);
+}
+
+function updateRestUI(){
+  const ws = workoutSession; if(!ws) return;
+  const m = Math.floor(ws.restRemaining/60), s = ws.restRemaining%60;
+  $('rest-clock').textContent = String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+  const pct = ws.restTotal > 0 ? (ws.restRemaining/ws.restTotal*100) : 0;
+  $('rest-bar').style.width = pct+'%';
+}
+
+function adjustRest(delta){
+  const ws = workoutSession; if(!ws) return;
+  ws.restRemaining = Math.max(5, ws.restRemaining + delta);
+  ws.restTotal = Math.max(ws.restTotal, ws.restRemaining);
+  updateRestUI();
+}
+
+function skipRest(){ finishRest(); }
+
+function finishRest(){
+  const ws = workoutSession; if(!ws) return;
+  if(ws.restInterval){ clearInterval(ws.restInterval); ws.restInterval = null; }
+  if(navigator.vibrate) navigator.vibrate([100,50,100]);
+  // 回到训练中页
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $('screen-workout').classList.add('active');
+  renderWorkoutScreen();
+}
+
+function nextExercise(){
+  const ws = workoutSession;
+  if(!ws) return;
+  if(ws.currentExIdx < ws.exercises.length - 1){
+    ws.currentExIdx += 1;
+    renderWorkoutScreen();
+  } else {
+    toast('已经是最后一个动作，可以「完成训练」啦', 'warn');
+  }
+}
+
+function skipExercise(){
+  const ws = workoutSession;
+  if(!ws) return;
+  if(ws.currentExIdx < ws.exercises.length - 1){
+    ws.currentExIdx += 1;
+    renderWorkoutScreen();
+  } else {
+    toast('没有下一个动作了', 'warn');
+  }
+}
+
+// 添加动作弹层
+function openExercisePickerForWorkout(){
+  exState.tab = 'strength';
+  exState.part = exState.part || 'chest';
+  openSheet('add-exercise-to-workout');
+}
+
+function addExerciseToCurrentWorkout(part, exId, exName){
+  const ws = workoutSession;
+  if(!ws) return;
+  const ord = ws.exercises.length + 1;
+  ws.exercises.push({
+    id_local: 'ex_'+Date.now()+'_'+ord,
+    exercise_id: exId, exercise_name: exName, body_part: part,
+    ord, target_sets: 4, target_reps: 10, target_weight: 0,
+    sets: [],
+  });
+  ws.currentExIdx = ws.exercises.length - 1;
+  closeSheet();
+  renderWorkoutScreen();
+  toast('+ ' + exName);
+}
+
+function confirmEndWorkout(){
+  if(!workoutSession) return;
+  const totalSets = workoutSession.exercises.reduce((s,e)=>s+e.sets.length, 0);
+  if(totalSets === 0){
+    if(!confirm('还没记录任何组数据，确认结束训练？')) return;
+  }
+  finishWorkout();
+}
+
+async function finishWorkout(){
+  const ws = workoutSession;
+  if(!ws) return;
+  if(ws.timerInterval) clearInterval(ws.timerInterval);
+  if(ws.restInterval) clearInterval(ws.restInterval);
+
+  const endedAt = new Date().toISOString();
+  const durationSec = Math.floor((Date.now() - ws.startedAt)/1000);
+
+  // 汇总
+  let totalVolume = 0, totalSets = 0;
+  const bodyParts = new Set();
+  const prList = [];
+  for(const ex of ws.exercises){
+    let exVol = 0;
+    for(const s of ex.sets){
+      exVol += (s.weight_kg||0) * (s.reps||0);
+      totalSets += 1;
+      if(s.isPR) prList.push(`${ex.exercise_name} ${s.weight_kg}kg×${s.reps}`);
+    }
+    totalVolume += exVol;
+    if(ex.body_part) bodyParts.add(ex.body_part);
+    // 更新 workout_exercises 总量
+    if(ex.db_id){
+      sb.from('workout_exercises').update({
+        total_volume: exVol, set_count: ex.sets.length
+      }).eq('id', ex.db_id).then(()=>{});
+    }
+  }
+
+  // PATCH workouts
+  const { data, error } = await sb.from('workouts').update({
+    ended_at: endedAt,
+    duration_sec: durationSec,
+    body_parts: [...bodyParts],
+    total_volume: Math.round(totalVolume),
+    total_sets: totalSets,
+  }).eq('id', ws.workoutId).select().single();
+  if(!error && data){
+    // 更新 cache
+    const idx = cache.workouts.findIndex(w=>w.id===ws.workoutId);
+    if(idx >= 0) cache.workouts[idx] = data;
+  }
+
+  // 渲染总结页
+  enterSummaryScreen({
+    durationSec, totalSets, totalVolume,
+    exerciseCount: ws.exercises.filter(e=>e.sets.length>0).length,
+    bodyParts: [...bodyParts],
+    prList,
+    date: new Date().toISOString().slice(0,10),
+  });
+
+  workoutSession = null;
+}
+
+function enterSummaryScreen(s){
+  document.querySelectorAll('.screen').forEach(sc=>sc.classList.remove('active'));
+  $('screen-summary').classList.add('active');
+  const m = Math.floor(s.durationSec/60), sec = s.durationSec%60;
+  $('sm-date').textContent = s.date;
+  $('sm-duration').textContent = m + 'min' + (sec ? ' '+sec+'s' : '');
+  $('sm-sets').textContent = s.totalSets;
+  $('sm-volume').textContent = s.totalVolume >= 1000 ? (s.totalVolume/1000).toFixed(1)+'k' : Math.round(s.totalVolume);
+  $('sm-exercises').textContent = s.exerciseCount + ' 个';
+  $('sm-parts').textContent = s.bodyParts.map(p=>STRENGTH_LIBRARY[p]?.name||p).join('/') || '--';
+
+  if(s.prList.length){
+    $('sm-pr-list').innerHTML = `
+      <div class="card p-3" style="background:linear-gradient(135deg, rgba(255,193,7,.12), rgba(255,122,69,.10)); border:1px solid rgba(255,193,7,.3); text-align:left">
+        <p class="text-xs font-black flex items-center gap-1.5" style="color:#FFC107">
+          <i class="lucide lucide-trophy" style="font-size:14px"></i>解锁 ${s.prList.length} 个 PR
+        </p>
+        <div class="mt-2 space-y-1">
+          ${s.prList.map(p=>`<p class="text-[11px]">· ${p}</p>`).join('')}
+        </div>
+      </div>`;
+  } else {
+    $('sm-pr-list').innerHTML = '';
+  }
+}
+
+function closeSummary(){
+  // 回到 training tab
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $('screen-training').classList.add('active');
+  $('tabbar').style.display = '';
+  $('fab').style.display = '';
+  document.querySelectorAll('.tab-item').forEach(t=>t.classList.toggle('active', t.dataset.tab==='training'));
+  refreshAll();
+  setTimeout(renderTrainingPage, 80);
+  checkAchievements();
 }
 
 // ============================================================
