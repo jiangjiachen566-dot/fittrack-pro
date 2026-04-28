@@ -201,9 +201,9 @@
   /* 通用数字 stepper：左右常驻 ± 按钮 */
   .num-stepper{ display:flex; align-items:stretch; gap:10px; margin-top:6px; }
   .num-stepper .number-input{ flex:1; padding:14px 8px; font-size:26px; }
-  .num-stepper-sm{ display:flex; align-items:center; gap:6px; }
-  .num-stepper-sm .qty-btn{ width:36px; height:36px; font-size:18px; border-radius:11px; }
-  .num-stepper-sm .input{ flex:1; text-align:center; font-size:15px; font-weight:700; padding:9px 6px; }
+  .num-stepper-sm{ display:flex; align-items:center; gap:4px; }
+  .num-stepper-sm .qty-btn{ width:28px; height:30px; font-size:15px; border-radius:8px; flex-shrink:0; padding:0; }
+  .num-stepper-sm .number-input{ flex:1; min-width:0; width:0; text-align:center; font-size:14px; font-weight:700; padding:6px 2px; border-radius:8px; }
   /* 日期选择行：醒目橙色按钮风 */
   .date-pick{ display:flex; align-items:center; justify-content:center; gap:10px;
     background:linear-gradient(135deg, rgba(255,122,69,.16), rgba(255,77,109,.10));
@@ -585,20 +585,6 @@
       </div>
 
       <div class="mt-4" id="record-list"></div>
-
-      <!-- 饮水 -->
-      <div class="card mt-4 p-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2"><i class="lucide lucide-droplets" style="color:var(--blue)"></i><span class="font-bold text-sm">饮水量</span></div>
-          <span class="text-xs text-slate-400 number-tabular"><span id="water-l">0</span> / <span id="water-t">2.4</span> L</span>
-        </div>
-        <div class="flex gap-1.5 mt-3" id="water-cells"></div>
-        <div class="flex gap-2 mt-3">
-          <button class="flex-1 py-2 rounded-lg text-xs font-semibold" style="background:rgba(91,157,255,.15); color:var(--blue); border:none; cursor:pointer" onclick="addWater(200)">+ 200ml</button>
-          <button class="flex-1 py-2 rounded-lg text-xs font-semibold" style="background:rgba(91,157,255,.15); color:var(--blue); border:none; cursor:pointer" onclick="addWater(300)">+ 300ml</button>
-          <button class="flex-1 py-2 rounded-lg text-xs font-semibold" style="background:rgba(91,157,255,.15); color:var(--blue); border:none; cursor:pointer" onclick="addWater(500)">+ 500ml</button>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -607,24 +593,30 @@
        ============================================================ -->
   <div class="screen" id="screen-training">
     <div class="scroll">
-      <!-- Hero · 开始训练大按钮 -->
-      <div class="mt-3">
-        <p class="text-[11px] text-slate-400">训练中心</p>
-        <h2 class="text-2xl font-black mt-0.5" id="tr-hero-title">💪 准备开始</h2>
-        <p class="text-[11px] text-slate-400 mt-1" id="tr-hero-sub">--</p>
+      <!-- Hero · 重新设计：玻璃卡 + 大按钮 + 状态徽章 -->
+      <div class="card mt-3 p-5" style="background:linear-gradient(140deg, rgba(255,122,69,.16) 0%, rgba(255,77,109,.10) 50%, rgba(34,211,167,.06) 100%); border:1px solid rgba(255,122,69,.22); position:relative; overflow:hidden">
+        <div style="position:absolute; right:-30px; top:-30px; width:160px; height:160px; border-radius:50%; background:radial-gradient(circle, rgba(255,122,69,.18), transparent 70%); pointer-events:none"></div>
+        <div class="flex items-center justify-between" style="position:relative">
+          <div>
+            <p class="text-[10px] text-slate-400 font-semibold tracking-wider">TRAINING CENTER</p>
+            <h2 class="text-2xl font-black mt-1" id="tr-hero-title">💪 准备开始</h2>
+          </div>
+          <div id="tr-hero-streak" class="text-right" style="line-height:1.2"></div>
+        </div>
+        <p class="text-[11px] text-slate-300 mt-2" id="tr-hero-sub">--</p>
+
+        <button onclick="openStartWorkoutSheet()" class="mt-4 w-full py-3.5 rounded-2xl font-black text-base flex items-center justify-center gap-2 grad-primary text-white" style="border:none; cursor:pointer; box-shadow:0 8px 22px rgba(255,122,69,.40), inset 0 1px 0 rgba(255,255,255,.18);">
+          <i class="lucide lucide-play" style="font-size:18px"></i>
+          开始训练
+        </button>
       </div>
 
-      <button onclick="openStartWorkoutSheet()" class="mt-3 w-full py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2 grad-primary text-white" style="border:none; cursor:pointer; box-shadow:0 8px 24px rgba(255,122,69,.35), inset 0 1px 0 rgba(255,255,255,.18);">
-        <i class="lucide lucide-play" style="font-size:18px"></i>
-        开始训练
-      </button>
-
       <!-- 概览卡 -->
-      <div class="card mt-4 p-4 grad-bg">
+      <div class="card mt-3 p-4">
         <div class="flex items-center justify-between">
           <div>
             <p class="text-[11px] text-slate-400">最近 30 天</p>
-            <p class="text-2xl font-black mt-0.5 number-tabular"><span id="tr-days">0</span><span class="text-xs text-slate-400 font-normal"> 天</span></p>
+            <p class="text-2xl font-black mt-0.5 number-tabular"><span id="tr-days">0</span><span class="text-xs text-slate-400 font-normal"> 次训练</span></p>
           </div>
           <span class="pill" style="background:rgba(255,122,69,.15); color:var(--primary)">PR <span id="tr-pr-30d">0</span> 次</span>
         </div>
@@ -1506,6 +1498,8 @@ document.querySelectorAll('.tab-item').forEach(t=>{
     if(tab==='data') setTimeout(()=>renderCharts(30), 50);
     if(tab==='plan') renderRecordList(currentCat());
     if(tab==='training') setTimeout(renderTrainingPage, 50);
+    // v15: 训练 tab 隐藏 FAB（避免遮挡 + 训练 tab 已有大按钮）
+    $('fab').style.display = (tab==='training') ? 'none' : '';
   });
 });
 document.addEventListener('click',(e)=>{
@@ -3000,6 +2994,7 @@ function renderTrainingHistory(){
 function renderTrainingHero(){
   const wks = cache.workouts || [];
   const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.toISOString().slice(0,10);
   const monthAgo = new Date(today.getTime() - 30*86400000).toISOString().slice(0,10);
   const monthCnt = wks.filter(w=>w.date>=monthAgo).length;
 
@@ -3009,14 +3004,32 @@ function renderTrainingHero(){
   if(earliest){
     weeks = Math.floor((today - new Date(earliest))/(7*86400000));
   }
+  // 距上次训练天数（修复 -1 bug：用 string 比较 + Math.max(0)）
   const lastDate = wks.length ? wks[0].date : null;
-  const lastDay = lastDate ? Math.floor((today - new Date(lastDate))/86400000) : null;
+  let lastDay = null;
+  if(lastDate){
+    const diffMs = today - new Date(lastDate);
+    lastDay = Math.max(0, Math.floor(diffMs/86400000));
+  }
   let sub;
   if(!wks.length) sub = '还没有训练记录，开启第一次吧';
-  else if(lastDay===0) sub = `今天已训练 · 已坚持 ${weeks} 周`;
+  else if(lastDay===0) sub = `今天已训练 ✓ · 已坚持 ${weeks} 周`;
   else if(lastDay===1) sub = `昨天训过 · 本月 ${monthCnt} 次`;
-  else sub = `已 ${lastDay} 天没练 · 本月 ${monthCnt} 次`;
+  else if(lastDay <= 3) sub = `${lastDay} 天没练 · 本月 ${monthCnt} 次`;
+  else sub = `已 ${lastDay} 天没练 · 该回去练了`;
   $('tr-hero-sub').textContent = sub;
+
+  // streak 徽章
+  const el = $('tr-hero-streak');
+  if(el){
+    if(lastDay===0){
+      el.innerHTML = `<span class="pill" style="background:rgba(34,211,167,.18);color:var(--accent);font-size:10px">✓ 今日</span><br><span class="text-[10px] text-slate-400 mt-1 inline-block">连续 ${weeks}w</span>`;
+    } else if(monthCnt>0){
+      el.innerHTML = `<span class="text-2xl font-black number-tabular" style="color:var(--primary)">${monthCnt}</span><br><span class="text-[10px] text-slate-400">本月次数</span>`;
+    } else {
+      el.innerHTML = `<span class="text-base font-black text-slate-400">--</span>`;
+    }
+  }
 }
 
 // ============================================================
@@ -3179,11 +3192,11 @@ function renderWorkoutScreen(){
         <span class="pill" style="background:rgba(255,122,69,.12); color:var(--primary); font-size:10px">${hint}</span>
       </div>
       ${completedRows}
-      <div class="mt-3" style="background:rgba(255,122,69,.06); padding:10px; border-radius:10px; border:1px solid rgba(255,122,69,.18)">
+      <div class="mt-3" style="background:rgba(255,122,69,.06); padding:12px; border-radius:12px; border:1px solid rgba(255,122,69,.18)">
         <p class="text-[10px] text-slate-400 mb-2">第 ${ex.sets.length+1} 组</p>
-        <div class="grid grid-cols-3 gap-2">
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px">
           <div>
-            <p class="text-[9px] text-slate-400 mb-1">重量</p>
+            <p class="text-[9px] text-slate-400 mb-1 text-center">重量(kg)</p>
             <div class="num-stepper-sm">
               <button class="qty-btn" onclick="numStep('wk-weight',-2.5,1)">−</button>
               <input class="number-input" type="number" id="wk-weight" value="${defWeight}" step="0.5">
@@ -3191,7 +3204,7 @@ function renderWorkoutScreen(){
             </div>
           </div>
           <div>
-            <p class="text-[9px] text-slate-400 mb-1">次数</p>
+            <p class="text-[9px] text-slate-400 mb-1 text-center">次数</p>
             <div class="num-stepper-sm">
               <button class="qty-btn" onclick="numStep('wk-reps',-1,0)">−</button>
               <input class="number-input" type="number" id="wk-reps" value="${defReps}">
@@ -3199,7 +3212,7 @@ function renderWorkoutScreen(){
             </div>
           </div>
           <div>
-            <p class="text-[9px] text-slate-400 mb-1">休息(s)</p>
+            <p class="text-[9px] text-slate-400 mb-1 text-center">休息(s)</p>
             <div class="num-stepper-sm">
               <button class="qty-btn" onclick="numStep('wk-rest',-15,0)">−</button>
               <input class="number-input" type="number" id="wk-rest" value="${defRest}">
@@ -3207,11 +3220,9 @@ function renderWorkoutScreen(){
             </div>
           </div>
         </div>
-        <div class="flex gap-2 mt-3">
-          <button onclick="saveSetAndRest()" class="flex-1 py-2.5 rounded-lg font-black text-sm grad-primary text-white" style="border:none; cursor:pointer">
-            <i class="lucide lucide-check" style="font-size:13px; margin-right:3px"></i>完成本组
-          </button>
-        </div>
+        <button onclick="saveSetAndRest()" class="mt-3 w-full py-3 rounded-xl font-black text-sm grad-primary text-white" style="border:none; cursor:pointer">
+          <i class="lucide lucide-check" style="font-size:13px; margin-right:3px"></i>完成本组
+        </button>
       </div>
       <div class="flex gap-2 mt-3">
         <button onclick="skipExercise()" class="flex-1 py-2 rounded-lg text-xs font-bold" style="background:rgba(255,255,255,.05); color:#94a3b8; border:none; cursor:pointer">跳过本动作</button>
@@ -4485,8 +4496,9 @@ function refreshAll(){
   $('bar-p').style.width = Math.min(100, d.p/pT*100) + '%';
   $('bar-c').style.width = Math.min(100, d.c/cT*100) + '%';
   $('bar-f').style.width = Math.min(100, d.f/fT*100) + '%';
-  $('water-l').textContent = (getWater()/1000).toFixed(1);
-  $('water-t').textContent = ((plan.waterTargetMl||2400)/1000).toFixed(1);
+  // v15: 打卡页删了独立饮水块，这俩元素可能不存在
+  if($('water-l')) $('water-l').textContent = (getWater()/1000).toFixed(1);
+  if($('water-t')) $('water-t').textContent = ((plan.waterTargetMl||2400)/1000).toFixed(1);
   renderWaterCells();
 
   // 「我的」页
