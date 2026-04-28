@@ -204,6 +204,22 @@
   .num-stepper-sm{ display:flex; align-items:center; gap:6px; }
   .num-stepper-sm .qty-btn{ width:36px; height:36px; font-size:18px; border-radius:11px; }
   .num-stepper-sm .input{ flex:1; text-align:center; font-size:15px; font-weight:700; padding:9px 6px; }
+  /* 日期选择行：醒目橙色按钮风 */
+  .date-pick{ display:flex; align-items:center; justify-content:center; gap:10px;
+    background:linear-gradient(135deg, rgba(255,122,69,.16), rgba(255,77,109,.10));
+    border:1.5px solid rgba(255,122,69,.45); border-radius:14px;
+    padding:11px 16px; cursor:pointer;
+    box-shadow:0 2px 10px rgba(255,122,69,.18), inset 0 1px 0 rgba(255,255,255,.05);
+    transition:transform .12s, border-color .15s, background .15s; }
+  .date-pick:active{ transform:scale(.98); background:linear-gradient(135deg, rgba(255,122,69,.24), rgba(255,77,109,.16)); }
+  .date-pick:hover{ border-color:var(--primary); }
+  .date-pick input[type="date"]{
+    background:transparent; border:none; outline:none;
+    color:var(--text); font-size:15px; font-weight:700; letter-spacing:.5px;
+    font-family:inherit; text-align:center; color-scheme:dark;
+    cursor:pointer; padding:0; min-width:130px;
+  }
+  .date-pick input[type="date"]::-webkit-calendar-picker-indicator{ display:none; }
   .chip-select{ display:flex; flex-wrap:wrap; gap:8px; }
   .chip{ padding:8px 14px; border-radius:999px; font-size:12px; font-weight:600;
     background:var(--panel-2); border:1px solid var(--line); color:var(--muted);
@@ -1310,10 +1326,10 @@ function openSheet(type, payload){
 
 // 通用日期行（默认今日，可改任何日期，最多到今天）
 function dateRow(id){
-  return `<div class="flex items-center justify-center gap-2 mt-3" style="background:var(--panel-2); border:1px solid var(--line); border-radius:12px; padding:8px 14px;">
-    <i class="lucide lucide-calendar" style="font-size:14px; color:var(--primary)"></i>
-    <input id="${id}" type="date" value="${today()}" max="${today()}"
-      style="background:transparent; border:none; outline:none; color:var(--text); font-size:13px; font-weight:600; font-family:inherit; text-align:center; color-scheme:dark;">
+  return `<div class="date-pick mt-3" onclick="document.getElementById('${id}').showPicker?.() || document.getElementById('${id}').focus()">
+    <i class="lucide lucide-calendar-days" style="font-size:18px; color:var(--primary)"></i>
+    <input id="${id}" type="date" value="${today()}" max="${today()}">
+    <i class="lucide lucide-chevron-down" style="font-size:14px; color:var(--primary); opacity:.8"></i>
   </div>`;
 }
 function getSheetDate(id){ return $(id)?.value || today(); }
