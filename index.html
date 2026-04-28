@@ -701,21 +701,27 @@ async function boot(){
 
 async function loadProfile(){
   const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
-  if(error){ toast('加载档案失败：'+error.message,'error'); return; }
+  if(error){ toast('加载档案失败：'+error.message,'error'); console.error('loadProfile error:', error); return; }
+  console.log('[loadProfile] data:', data);
   if(!data){
-    // 注册成功但 profile 没建（可能首次登录），进引导
     showOnboarding();
     return;
   }
   profile = data;
-  // 没填 plan / heightCm 等也认为引导未完成
   if(!profile.height_cm || !profile.start_weight){
+    console.log('[loadProfile] 缺 height_cm 或 start_weight，进引导');
     showOnboarding();
     return;
   }
-  await loadAll();
-  showApp();
-  refreshAll();
+  console.log('[loadProfile] 完整 profile，进 app');
+  try {
+    await loadAll();
+    showApp();
+    refreshAll();
+  } catch(e) {
+    console.error('loadAll/refreshAll 失败:', e);
+    toast('加载数据失败：'+e.message, 'error');
+  }
 }
 
 async function loadAll(){
@@ -836,37 +842,38 @@ async function doRegister(){
   if(pwd !== pwd2){ toast('两次密码不一致','error'); return; }
 
   $('auth-btn').disabled = true; $('auth-btn').textContent = '创建中...';
-  const { data, error } = await sb.auth.signUp({ email: phoneToEmail(phone), password: pwd });
-  if(error){
-    $('auth-btn').disabled = false; $('auth-btn').textContent = '注册并开始';
-    if(error.message.includes('already')) toast('该手机号已注册，请直接登录','error');
-    else toast(error.message,'error');
-    return;
-  }
-
-  // 注册后 Supabase 可能要求邮箱验证。我们直接尝试登录（若 confirm-email 关，则成功）
-  if(!data.session){
-    // 邮箱验证开了 → 自动登录尝试
-    const { data:loginData, error:loginErr } = await sb.auth.signInWithPassword({ email: phoneToEmail(phone), password: pwd });
-    if(loginErr){
-      toast('注册成功但需要邮箱验证。请联系管理员关闭验证设置','error');
-      $('auth-btn').disabled = false; $('auth-btn').textContent = '注册并开始';
-      return;
+  try {
+    const { data, error } = await sb.auth.signUp({ email: phoneToEmail(phone), password: pwd });
+    if(error){
+      if(error.message.includes('already')) throw new Error('该手机号已注册，请直接登录');
+      throw new Error(error.message);
     }
-    session = loginData.session;
-  } else {
-    session = data.session;
+
+    if(!data.session){
+      const { data:loginData, error:loginErr } = await sb.auth.signInWithPassword({ email: phoneToEmail(phone), password: pwd });
+      if(loginErr) throw new Error('注册成功但需要邮箱验证。请管理员关闭 Confirm email 选项');
+      session = loginData.session;
+    } else {
+      session = data.session;
+    }
+
+    // 检查 profile 是否已存在（避免重复 insert 报错）
+    const { data: existing } = await sb.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
+    if(!existing){
+      const { error: pErr } = await sb.from('profiles').insert({
+        id: session.user.id, phone, name, gender:'male', activity_level:1.55,
+        start_date: today(), plan:{}
+      });
+      if(pErr) throw new Error('档案创建失败：'+pErr.message);
+    }
+
+    toast('注册成功 ✓ 开始引导');
+    await loadProfile();
+  } catch(err) {
+    console.error('doRegister 错误：', err);
+    toast(err.message || '注册失败','error');
+    $('auth-btn').disabled = false; $('auth-btn').textContent = '注册并开始';
   }
-
-  // 创建 profile（最小字段，引导补全）
-  const { error: pErr } = await sb.from('profiles').insert({
-    id: session.user.id, phone, name, gender:'male', activity_level:1.55,
-    start_date: today(), plan:{}
-  });
-  if(pErr){ toast('档案创建失败：'+pErr.message,'error'); $('auth-btn').disabled = false; $('auth-btn').textContent = '注册并开始'; return; }
-
-  toast('注册成功 ✓ 开始引导');
-  await loadProfile();
 }
 
 async function logout(){
@@ -1033,41 +1040,67 @@ function onbPrev(){ if(onbState.step>1){ onbState.step--; renderOnboarding(); } 
 
 async function onbFinish(){
   const w = parseFloat(onbState.weight), g = parseFloat(onbState.goal);
-  const tdee = computeBMRTDEE({ gender:onbState.gender, age:parseInt(onbState.age),
-    heightCm:parseFloat(onbState.height), activityLevel:onbState.activity }, w);
-  let deficit = w<=60?300:(w<=80?500:700);
-  deficit = Math.min(deficit, Math.round(tdee.tdee*0.25));
-  const calT = Math.max(Math.round(tdee.bmr*1.1), tdee.tdee - deficit);
-  const weeks = Math.max(1, Math.ceil((w-g)/(deficit*7/7700)));
-  const endDate = new Date(); endDate.setDate(endDate.getDate() + weeks*7);
-  const plan = {
-    name: `${weeks} 周科学减脂计划`,
-    startDate: today(),
-    endDate: fmtDate(endDate),
-    calTarget: calT,
-    proteinG: Math.round(calT*0.30/4),
-    carbG: Math.round(calT*0.45/4),
-    fatG: Math.round(calT*0.25/9),
-    exerciseDaysPerWeek: 5,
-    waterTargetMl: Math.min(3500, Math.max(1500, Math.round(w*35)))
-  };
-  const updates = {
-    gender: onbState.gender, age: parseInt(onbState.age),
-    height_cm: parseFloat(onbState.height),
-    start_weight: w, goal_weight: g,
-    activity_level: onbState.activity,
-    start_date: today(),
-    plan
-  };
-  const { error } = await sb.from('profiles').update(updates).eq('id', session.user.id);
-  if(error){ toast('保存失败：'+error.message,'error'); return; }
-  // 同时插入第一条体重
-  const { error: wErr } = await sb.from('weights').upsert({
-    user_id: session.user.id, date: today(), kg: w
-  }, { onConflict:'user_id,date' });
-  if(wErr) console.warn(wErr);
-  await loadProfile();
-  toast('计划已生成 ✓');
+  if(!w || !g || !onbState.height || !onbState.age){
+    toast('引导数据不完整，请回到第 1-2 步检查','error'); return;
+  }
+  // 显示按钮 loading
+  const btns = document.querySelectorAll('.onb-step.active .btn-primary');
+  btns.forEach(b=>{ b.disabled=true; b.textContent='生成中...'; });
+  try {
+    const tdee = computeBMRTDEE({ gender:onbState.gender, age:parseInt(onbState.age),
+      heightCm:parseFloat(onbState.height), activityLevel:onbState.activity }, w);
+    let deficit = w<=60?300:(w<=80?500:700);
+    deficit = Math.min(deficit, Math.round(tdee.tdee*0.25));
+    const calT = Math.max(Math.round(tdee.bmr*1.1), tdee.tdee - deficit);
+    const weeks = Math.max(1, Math.ceil((w-g)/(deficit*7/7700)));
+    const endDate = new Date(); endDate.setDate(endDate.getDate() + weeks*7);
+    const plan = {
+      name: `${weeks} 周科学减脂计划`,
+      startDate: today(),
+      endDate: fmtDate(endDate),
+      calTarget: calT,
+      proteinG: Math.round(calT*0.30/4),
+      carbG: Math.round(calT*0.45/4),
+      fatG: Math.round(calT*0.25/9),
+      exerciseDaysPerWeek: 5,
+      waterTargetMl: Math.min(3500, Math.max(1500, Math.round(w*35)))
+    };
+    const updates = {
+      gender: onbState.gender, age: parseInt(onbState.age),
+      height_cm: parseFloat(onbState.height),
+      start_weight: w, goal_weight: g,
+      activity_level: onbState.activity,
+      start_date: today(),
+      plan
+    };
+
+    // 检查 profile 是否存在；不存在（注册时 insert 失败）则补一个 upsert
+    const { data: exist } = await sb.from('profiles').select('id').eq('id', session.user.id).maybeSingle();
+    if(!exist){
+      // 兜底：profile 不存在就建一个
+      const phone = (session.user.email||'').split('@')[0];
+      const { error: cErr } = await sb.from('profiles').insert({
+        id: session.user.id, phone, name: profile?.name || phone, ...updates
+      });
+      if(cErr){ throw new Error('创建档案失败：'+cErr.message); }
+    } else {
+      const { error } = await sb.from('profiles').update(updates).eq('id', session.user.id);
+      if(error){ throw new Error('保存档案失败：'+error.message); }
+    }
+
+    // 插入第一条体重
+    const { error: wErr } = await sb.from('weights').upsert({
+      user_id: session.user.id, date: today(), kg: w
+    }, { onConflict:'user_id,date' });
+    if(wErr) console.warn('体重插入失败：', wErr);
+
+    toast('计划已生成 ✓');
+    await loadProfile();
+  } catch(err) {
+    console.error('onbFinish 错误：', err);
+    toast(err.message || '保存失败，请重试','error');
+    btns.forEach(b=>{ b.disabled=false; b.textContent='开始减脂之旅 🚀'; });
+  }
 }
 
 // ============================================================
