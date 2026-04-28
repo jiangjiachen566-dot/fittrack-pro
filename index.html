@@ -1734,7 +1734,7 @@ function sheetTemplate(type, payload){
         <button data-meal="dinner">晚餐</button>
         <button data-meal="snack">加餐</button>
       </div>
-      <input class="input mt-3" id="food-search" placeholder="搜索食物 / 套餐..." oninput="renderFoodTab()">
+      <input class="input mt-3" id="food-search" placeholder="搜索食物 / 套餐..." oninput="debouncedRenderFoodTab()">
       <div class="food-tabs mt-3" id="food-tabs">
         ${[
           {id:'frequent', n:'高频', i:'flame'},
@@ -1746,7 +1746,7 @@ function sheetTemplate(type, payload){
           <i class="lucide lucide-${t.i}" style="font-size:13px"></i>${t.n}
         </button>`).join('')}
       </div>
-      <div id="food-tab-body" class="mt-3">
+      <div id="food-tab-body" class="mt-3" style="min-height:320px; contain:layout style">
         <!-- 内容由 renderFoodTab() 注入 -->
       </div>
       <input type="hidden" id="meal-data" value=''>
@@ -3538,6 +3538,13 @@ function switchFoodTab(tabId){
   $('food-cur-tab').value = tabId;
   document.querySelectorAll('.food-tab').forEach(t=>t.classList.toggle('on', t.dataset.tab===tabId));
   renderFoodTab();
+}
+
+// debounce 搜索输入：避免每打字一次就重渲整个食物库（150+ 项重 lucide 解析造成闪烁）
+let _foodSearchTimer = null;
+function debouncedRenderFoodTab(){
+  clearTimeout(_foodSearchTimer);
+  _foodSearchTimer = setTimeout(renderFoodTab, 180);
 }
 
 function renderFoodTab(){
