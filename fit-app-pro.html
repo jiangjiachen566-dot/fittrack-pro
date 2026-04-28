@@ -220,6 +220,25 @@
     cursor:pointer; padding:0; min-width:130px;
   }
   .date-pick input[type="date"]::-webkit-calendar-picker-indicator{ display:none; }
+  /* 食物 5 Tab 切换 */
+  .food-tabs{ display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; -ms-overflow-style:none; padding-bottom:2px; }
+  .food-tabs::-webkit-scrollbar{ display:none; }
+  .food-tab{ flex:0 0 auto; display:inline-flex; align-items:center; gap:4px;
+    padding:7px 12px; border-radius:999px; background:var(--panel-2);
+    border:1px solid var(--line); color:var(--muted);
+    font-size:12px; font-weight:600; cursor:pointer; font-family:inherit;
+    transition:all .15s; white-space:nowrap; }
+  .food-tab.on{ background:rgba(255,122,69,.15); border-color:var(--primary); color:var(--primary); }
+  .food-tab:active{ transform:scale(.96); }
+  /* 食物分类标题 */
+  .cat-header{ display:flex; align-items:center; gap:8px; padding:8px 4px 4px;
+    font-size:11px; font-weight:700; color:var(--muted); letter-spacing:.5px; }
+  .cat-header i{ font-size:14px; }
+  .combo-card{ background:linear-gradient(135deg, rgba(255,122,69,.10), rgba(180,120,255,.06));
+    border:1px solid rgba(255,122,69,.20); border-radius:14px; padding:12px;
+    cursor:pointer; transition:transform .12s, border-color .15s; }
+  .combo-card:active{ transform:scale(.98); }
+  .combo-card:hover{ border-color:var(--primary); }
   .chip-select{ display:flex; flex-wrap:wrap; gap:8px; }
   .chip{ padding:8px 14px; border-radius:999px; font-size:12px; font-weight:600;
     background:var(--panel-2); border:1px solid var(--line); color:var(--muted);
@@ -724,7 +743,8 @@ let session = null;
 let profile = null;          // profiles 行
 let cache = {                // 内存缓存所有用户数据
   weights:[], food:[], exercise:[], water:[], sleep:[], mood:[],
-  customFoods:[], achievements:[], bodyMeasures:[], strength:[], userStatus:[]
+  customFoods:[], achievements:[], bodyMeasures:[], strength:[], userStatus:[],
+  favoriteFoods:[], mealCombos:[]
 };
 
 // ========== 用户状态定义 ==========
@@ -825,7 +845,7 @@ async function loadProfile(){
 
 async function loadAll(){
   const uid = session.user.id;
-  const [w,f,e,wt,sl,md,cf,ach,bm,st,us] = await Promise.all([
+  const [w,f,e,wt,sl,md,cf,ach,bm,st,us,fav,mc] = await Promise.all([
     sb.from('weights').select('*').eq('user_id',uid).order('date'),
     sb.from('food_records').select('*').eq('user_id',uid).order('date'),
     sb.from('exercise_records').select('*').eq('user_id',uid).order('date'),
@@ -836,7 +856,9 @@ async function loadAll(){
     sb.from('achievements').select('*').eq('user_id',uid),
     sb.from('body_measures').select('*').eq('user_id',uid).order('date'),
     sb.from('strength_records').select('*').eq('user_id',uid).order('date'),
-    sb.from('user_status').select('*').eq('user_id',uid).order('start_date', {ascending:false})
+    sb.from('user_status').select('*').eq('user_id',uid).order('start_date', {ascending:false}),
+    sb.from('favorite_foods').select('*').eq('user_id',uid),
+    sb.from('meal_combos').select('*').eq('user_id',uid).order('created_at', {ascending:false})
   ]);
   cache.weights = w.data || [];
   cache.food = f.data || [];
@@ -849,6 +871,9 @@ async function loadAll(){
   cache.bodyMeasures = bm.data || [];
   cache.strength = st.data || [];
   cache.userStatus = us.data || [];
+  // 新表可能未建：失败时静默用空数组（避免阻塞整个加载）
+  cache.favoriteFoods = (fav && !fav.error) ? (fav.data || []) : [];
+  cache.mealCombos = (mc && !mc.error) ? (mc.data || []) : [];
 }
 
 function showApp(){
@@ -1316,12 +1341,22 @@ function currentCat(){
 function closeSheet(){
   $('mask').classList.remove('show');
   $('sheet').classList.remove('show');
+  // 清理临时套餐编辑状态（避免下次打开食物 Tab 还误以为在编辑）
+  sessionStorage.removeItem('comboEditing');
 }
 function openSheet(type, payload){
   const sheet = $('sheet');
   sheet.innerHTML = '<div class="sheet-handle"></div>' + sheetTemplate(type, payload);
   $('mask').classList.add('show');
   setTimeout(()=>sheet.classList.add('show'), 10);
+  // 初始化需要后置脚本的 sheet
+  if(type === 'food'){
+    setTimeout(()=>{
+      // 如果是从套餐编辑跳过来选食物，自动切到食物库 Tab
+      if(sessionStorage.getItem('comboEditing')) switchFoodTab('library');
+      else renderFoodTab();
+    }, 20);
+  }
 }
 
 // 通用日期行（默认今日，可改任何日期，最多到今天）
@@ -1396,44 +1431,57 @@ function sheetTemplate(type, payload){
   }
 
   if(type==='food'){
-    const presets = systemFoods();
-    const allFoods = [...presets, ...(cache.customFoods||[])];
-    const recent = recentFoods();
     return `
       <h3 class="text-lg font-black text-center">记录饮食</h3>
       ${dateRow('f-date')}
-      <p class="text-[11px] text-slate-400 text-center mt-1">选择餐次和食物</p>
       <div class="seg mt-3" id="meal-seg">
         <button class="on" data-meal="breakfast">早餐</button>
         <button data-meal="lunch">午餐</button>
         <button data-meal="dinner">晚餐</button>
         <button data-meal="snack">加餐</button>
       </div>
-      <input class="input mt-3" id="food-search" placeholder="搜索食物..." oninput="filterFoodList()">
-      ${recent.length ? `<p class="text-[11px] text-slate-400 mt-3 mb-1">最近常用</p>
-      <div class="chip-select" style="margin-bottom:8px">
-        ${recent.map(f=>`<div class="chip" onclick="quickAddRecent('${f.name.replace(/'/g,"\\'")}')">${f.emoji||''} ${f.name}</div>`).join('')}
-      </div>` : ''}
-      <p class="text-[11px] text-slate-400 mt-3 mb-2">食物库（${allFoods.length}）</p>
-      <div class="space-y-2 max-h-56 overflow-y-auto" id="food-list" style="scrollbar-width:none">
-        ${allFoods.map((p,i)=>foodRow(p,i)).join('')}
+      <input class="input mt-3" id="food-search" placeholder="搜索食物 / 套餐..." oninput="renderFoodTab()">
+      <div class="food-tabs mt-3" id="food-tabs">
+        ${[
+          {id:'frequent', n:'高频', i:'flame'},
+          {id:'library',  n:'食物库', i:'book-open'},
+          {id:'combos',   n:'套餐', i:'utensils-crossed'},
+          {id:'favorite', n:'收藏', i:'star'},
+          {id:'custom',   n:'自定义', i:'sparkles'}
+        ].map((t,i)=>`<button class="food-tab ${i===0?'on':''}" data-tab="${t.id}" onclick="switchFoodTab('${t.id}')">
+          <i class="lucide lucide-${t.i}" style="font-size:13px"></i>${t.n}
+        </button>`).join('')}
       </div>
-      <input type="hidden" id="meal-data" value='${JSON.stringify(allFoods).replace(/'/g,"&#39;")}'>
-      <button class="btn-primary mt-3" onclick="openSheet('custom-food')">+ 添加自定义食物</button>
-      <button class="btn-ghost mt-2" onclick="closeSheet()">关闭</button>
+      <div id="food-tab-body" class="mt-3">
+        <!-- 内容由 renderFoodTab() 注入 -->
+      </div>
+      <input type="hidden" id="meal-data" value=''>
+      <input type="hidden" id="food-cur-tab" value="frequent">
+      <button class="btn-ghost mt-3" onclick="closeSheet()">关闭</button>
     `;
   }
 
   if(type==='food-detail'){
     const lib = JSON.parse($('meal-data').value);
     const item = lib[payload];
+    const isFav = isFoodFavorite(item.name);
+    // 提取单份 g 数（如"鸡胸肉 100g"提取 100；提取不到则 null）
+    const gMatch = (item.name.match(/(\d+(?:\.\d+)?)\s*g/i) || item.name.match(/(\d+(?:\.\d+)?)\s*ml/i));
+    const baseG = gMatch ? parseFloat(gMatch[1]) : null;
     return `
-      <h3 class="text-lg font-black text-center">${item.emoji||''} ${item.name}</h3>
-      <p class="text-[11px] text-slate-400 text-center mt-1">${item.cal} kcal · 蛋白 ${item.p}g · 碳水 ${item.c}g · 脂肪 ${item.f}g</p>
+      <div style="display:flex; align-items:center; justify-content:center; gap:8px;">
+        <h3 class="text-lg font-black text-center">${item.emoji||''} ${item.name.replace(/\s*\d+(?:\.\d+)?\s*(g|ml).*$/i,'')}</h3>
+        <button onclick="toggleFavorite('${item.name.replace(/'/g,"\\'")}', '${item.emoji||''}', ${item.cal}, ${item.p}, ${item.c}, ${item.f})"
+          style="background:transparent; border:none; cursor:pointer; padding:4px;">
+          <i class="lucide lucide-star" style="font-size:20px; color:${isFav?'#FFC83D':'rgba(255,255,255,.3)'}; ${isFav?'fill:#FFC83D':''}"></i>
+        </button>
+      </div>
+      <p class="text-[11px] text-slate-400 text-center mt-1">单份：${item.cal} kcal · P${item.p}g · C${item.c}g · F${item.f}g${baseG?` · ${baseG}${gMatch[0].includes('ml')?'ml':'g'}/份`:''}</p>
+
       <p class="text-[11px] text-slate-400 mt-4 mb-1">份量倍数</p>
-      <div class="qty-stepper">
+      <div class="num-stepper">
         <button class="qty-btn" onclick="qStep(-0.5)">−</button>
-        <input type="number" id="food-qty" value="1" step="0.1" min="0.1" class="number-input" style="font-size:24px; padding:10px" oninput="qPreview()">
+        <input type="number" id="food-qty" value="1" step="0.1" min="0.1" class="number-input" style="font-size:24px; padding:10px" oninput="qPreview(); syncGramFromQty(${baseG||'null'})">
         <button class="qty-btn" onclick="qStep(0.5)">+</button>
       </div>
       <div class="qty-presets">
@@ -1442,6 +1490,16 @@ function sheetTemplate(type, payload){
         <button onclick="qSet(1.5)">×1.5</button>
         <button onclick="qSet(2)">×2</button>
       </div>
+
+      ${baseG ? `
+        <p class="text-[11px] text-slate-400 mt-3 mb-1">实际克重（与倍数联动）</p>
+        <div class="num-stepper-sm">
+          <button class="qty-btn" onclick="numStep('food-gram',-10,0); syncQtyFromGram(${baseG})">−</button>
+          <input type="number" id="food-gram" value="${baseG}" min="1" step="1" class="input" style="text-align:center; font-weight:700;" oninput="syncQtyFromGram(${baseG})">
+          <button class="qty-btn" onclick="numStep('food-gram',10,0); syncQtyFromGram(${baseG})">+</button>
+        </div>
+      ` : ''}
+
       <div class="card mt-4 p-4 grad-bg">
         <p class="text-[11px] text-slate-400">实际营养</p>
         <div class="grid grid-cols-4 gap-2 mt-2">
@@ -1664,33 +1722,298 @@ function sheetTemplate(type, payload){
     `;
   }
 
+  // ===== v13 套餐相关 =====
+  if(type==='combo-edit'){
+    const editing = payload || null;  // payload 是 combo 对象（编辑）或 null（新建）
+    const items = editing ? (editing.items_json || []) : [];
+    const totalCal = items.reduce((s,it)=>s + it.cal*it.qty, 0);
+    const totalP = items.reduce((s,it)=>s + it.p*it.qty, 0);
+    return `
+      <h3 class="text-lg font-black text-center">${editing?'编辑套餐':'新建套餐'}</h3>
+      <p class="text-[11px] text-slate-400 text-center mt-1">把多个食物组合成一个一键添加项</p>
+      <p class="text-[11px] text-slate-400 mt-4 mb-1">套餐名称</p>
+      <input class="input" id="combo-name" maxlength="20" placeholder="例如：减脂晚餐 / 周末早餐" value="${editing?editing.name:''}">
+
+      <div class="card mt-3 p-3 grad-bg">
+        <div class="flex justify-between items-center">
+          <p class="text-[11px] text-slate-400">合计</p>
+          <p class="text-[10px] text-slate-500" id="combo-count">${items.length} 项</p>
+        </div>
+        <div class="flex justify-between mt-1">
+          <p class="text-base font-bold"><span id="combo-cal">${Math.round(totalCal)}</span> <span class="text-xs text-slate-400">kcal</span></p>
+          <p class="text-xs text-slate-300">蛋白 <span id="combo-p">${totalP.toFixed(1)}</span>g</p>
+        </div>
+      </div>
+
+      <p class="text-[11px] text-slate-400 mt-3 mb-1">已加入的食物</p>
+      <div id="combo-items" class="space-y-2 max-h-40 overflow-y-auto" style="scrollbar-width:none">
+        ${items.length ? items.map((it,i)=>`
+          <div class="food-row" style="cursor:default">
+            <span class="text-lg">${it.emoji||'🍽'}</span>
+            <div class="flex-1">
+              <p class="text-sm font-semibold">${it.name}</p>
+              <p class="text-[10px] text-slate-400">×${it.qty} · ${Math.round(it.cal*it.qty)}kcal</p>
+            </div>
+            <button class="swipe-del" onclick="comboRemoveItem(${i})">删</button>
+          </div>`).join('') : '<p class="empty">还没添加食物</p>'}
+      </div>
+
+      <button class="btn-primary mt-3" onclick="comboOpenAddPicker()">+ 添加食物到套餐</button>
+      <input type="hidden" id="combo-edit-id" value="${editing?editing.id:''}">
+      <input type="hidden" id="combo-edit-items" value='${JSON.stringify(items).replace(/'/g,"&#39;")}'>
+      <button class="btn-primary mt-2" onclick="saveCombo()">保存套餐</button>
+      ${editing ? `<button class="btn-danger mt-2" onclick="deleteCombo(${editing.id})">删除此套餐</button>` : ''}
+      <button class="btn-ghost mt-2" onclick="openSheet('food')">取消</button>
+    `;
+  }
+
+  if(type==='combo-detail'){
+    const c = payload;
+    const items = c.items_json || [];
+    const totalCal = items.reduce((s,it)=>s + it.cal*it.qty, 0);
+    const totalP = items.reduce((s,it)=>s + it.p*it.qty, 0);
+    const totalC = items.reduce((s,it)=>s + it.c*it.qty, 0);
+    const totalF = items.reduce((s,it)=>s + it.f*it.qty, 0);
+    return `
+      <h3 class="text-lg font-black text-center">${c.name}</h3>
+      <p class="text-[11px] text-slate-400 text-center mt-1">${items.length} 项 · 共 ${Math.round(totalCal)} kcal</p>
+      <div class="card mt-4 p-4 grad-bg">
+        <div class="grid grid-cols-4 gap-2">
+          <div><p class="text-[9px] text-slate-400">热量</p><p class="text-sm font-bold">${Math.round(totalCal)}</p></div>
+          <div><p class="text-[9px] text-slate-400">蛋白</p><p class="text-sm font-bold">${totalP.toFixed(1)}g</p></div>
+          <div><p class="text-[9px] text-slate-400">碳水</p><p class="text-sm font-bold">${totalC.toFixed(1)}g</p></div>
+          <div><p class="text-[9px] text-slate-400">脂肪</p><p class="text-sm font-bold">${totalF.toFixed(1)}g</p></div>
+        </div>
+      </div>
+      <p class="text-[11px] text-slate-400 mt-4 mb-2">套餐内容</p>
+      <div class="space-y-2 max-h-48 overflow-y-auto" style="scrollbar-width:none">
+        ${items.map(it=>`
+          <div class="food-row" style="cursor:default">
+            <span class="text-lg">${it.emoji||'🍽'}</span>
+            <div class="flex-1">
+              <p class="text-sm font-semibold">${it.name}</p>
+              <p class="text-[10px] text-slate-400">×${it.qty} · ${Math.round(it.cal*it.qty)}kcal · P${(it.p*it.qty).toFixed(1)}g</p>
+            </div>
+          </div>`).join('')}
+      </div>
+      <p class="text-[11px] text-slate-400 mt-3 mb-1">添加到</p>
+      <div class="seg" id="combo-meal-seg">
+        <button class="on" data-meal="breakfast">早餐</button>
+        <button data-meal="lunch">午餐</button>
+        <button data-meal="dinner">晚餐</button>
+        <button data-meal="snack">加餐</button>
+      </div>
+      <button class="btn-primary mt-3" onclick="addComboToMeal(${c.id})">一键加入</button>
+      <button class="btn-ghost mt-2" onclick="openSheet('combo-edit', getCombo(${c.id}))">编辑套餐</button>
+      <button class="btn-ghost mt-2" onclick="openSheet('food')">返回</button>
+    `;
+  }
+
   return '';
 }
 
 // ============================================================
 // 食物 / 运动 数据
 // ============================================================
-function systemFoods(){ return [
-  {name:'鸡胸肉 100g', cal:165, p:31, c:0, f:3.6, emoji:'🍗'},
-  {name:'三文鱼 100g', cal:208, p:20, c:0, f:13, emoji:'🐟'},
-  {name:'瘦牛肉 100g', cal:145, p:20, c:0, f:6.6, emoji:'🥩'},
-  {name:'虾仁 100g', cal:99, p:24, c:0.2, f:0.3, emoji:'🦐'},
-  {name:'全蛋 1个', cal:78, p:6, c:1, f:5.5, emoji:'🥚'},
-  {name:'蛋白 1个', cal:17, p:3.6, c:0.2, f:0.1, emoji:'🥚'},
-  {name:'低脂酸奶 100g', cal:60, p:6, c:7, f:0.3, emoji:'🥛'},
-  {name:'糙米饭 100g', cal:112, p:2.5, c:23, f:1, emoji:'🍚'},
-  {name:'红薯 100g', cal:86, p:1.6, c:20, f:0.1, emoji:'🍠'},
-  {name:'燕麦 50g 干', cal:190, p:6.5, c:33, f:3.5, emoji:'🌾'},
-  {name:'全麦面包 1片', cal:90, p:3, c:16, f:1.5, emoji:'🍞'},
-  {name:'西兰花 200g', cal:68, p:5.6, c:14, f:0.6, emoji:'🥦'},
-  {name:'菠菜 200g', cal:46, p:5.8, c:7.2, f:0.8, emoji:'🥬'},
-  {name:'苹果 1个', cal:78, p:0.5, c:21, f:0.3, emoji:'🍎'},
-  {name:'蓝莓 100g', cal:57, p:0.7, c:14, f:0.3, emoji:'🫐'},
-  {name:'牛油果 1/2', cal:152, p:2, c:8, f:14, emoji:'🥑'},
-  {name:'巴旦木 30g', cal:174, p:6.3, c:6.6, f:15, emoji:'🥜'},
-  {name:'无糖拿铁', cal:94, p:6, c:7, f:5, emoji:'☕'},
-  {name:'美式咖啡', cal:5, p:0.3, c:0, f:0, emoji:'☕'}
-];}
+// ============================================================
+// 食物库 v13：12 类 150+ 项（中式日常 90% 覆盖）
+// 字段说明：name, cal/p/c/f 都是「单份」的；unit 描述份量；g 是单份对应的克数（可选）
+// ============================================================
+const FOOD_CATEGORIES = [
+  {id:'meat',     name:'肉禽蛋',   icon:'beef',         color:'#FF7A45'},
+  {id:'seafood',  name:'水产',     icon:'fish',         color:'#5B9DFF'},
+  {id:'staple',   name:'主食',     icon:'wheat',        color:'#FFC83D'},
+  {id:'veggie',   name:'蔬菜',     icon:'salad',        color:'#22D3A7'},
+  {id:'fruit',    name:'水果',     icon:'apple',        color:'#FF6B8B'},
+  {id:'dairy',    name:'乳制品',   icon:'milk',         color:'#B478FF'},
+  {id:'beans',    name:'豆制品',   icon:'soup',         color:'#E8B86F'},
+  {id:'nuts',     name:'坚果',     icon:'nut',          color:'#A0826D'},
+  {id:'snack',    name:'零食',     icon:'cookie',       color:'#FF9F43'},
+  {id:'drink',    name:'饮品',     icon:'coffee',       color:'#7C5E48'},
+  {id:'takeout',  name:'外食',     icon:'utensils-crossed', color:'#FF4D6D'},
+  {id:'condiment',name:'调味油脂', icon:'droplet',      color:'#FFD66B'}
+];
+
+const FOOD_LIBRARY = [
+  // ===== 肉禽蛋 (15) =====
+  {cat:'meat', emoji:'🍗', name:'鸡胸肉 100g',    cal:165, p:31,  c:0,    f:3.6},
+  {cat:'meat', emoji:'🍗', name:'鸡腿肉去皮 100g', cal:172, p:24,  c:0,    f:8},
+  {cat:'meat', emoji:'🍗', name:'鸡翅 100g',      cal:194, p:18,  c:0,    f:14},
+  {cat:'meat', emoji:'🥩', name:'瘦牛肉 100g',    cal:145, p:20,  c:0,    f:6.6},
+  {cat:'meat', emoji:'🥩', name:'牛排 (西冷) 100g',cal:240, p:23,  c:0,    f:16},
+  {cat:'meat', emoji:'🥩', name:'肥牛 100g',      cal:308, p:18,  c:0,    f:26},
+  {cat:'meat', emoji:'🥩', name:'瘦猪肉 100g',    cal:143, p:20,  c:1.5,  f:6.2},
+  {cat:'meat', emoji:'🥓', name:'培根 30g (2片)', cal:130, p:8.5, c:0.4,  f:10},
+  {cat:'meat', emoji:'🌭', name:'火腿肠 50g',     cal:106, p:7,   c:8,    f:5},
+  {cat:'meat', emoji:'🥩', name:'羊肉瘦 100g',    cal:118, p:20.5,c:0,    f:3.9},
+  {cat:'meat', emoji:'🥚', name:'全蛋 1个 (50g)', cal:78,  p:6,   c:1,    f:5.5},
+  {cat:'meat', emoji:'🥚', name:'蛋白 1个',       cal:17,  p:3.6, c:0.2,  f:0.1},
+  {cat:'meat', emoji:'🥚', name:'蛋黄 1个',       cal:54,  p:2.7, c:0.6,  f:4.5},
+  {cat:'meat', emoji:'🥚', name:'鹌鹑蛋 5个',     cal:80,  p:6.5, c:0.4,  f:5.5},
+  {cat:'meat', emoji:'🍗', name:'鸡肝 100g',      cal:121, p:16.6,c:2.8,  f:4.8},
+
+  // ===== 水产 (12) =====
+  {cat:'seafood', emoji:'🐟', name:'三文鱼 100g',     cal:208, p:20,  c:0,   f:13},
+  {cat:'seafood', emoji:'🐟', name:'金枪鱼罐头 100g', cal:116, p:26,  c:0,   f:1},
+  {cat:'seafood', emoji:'🐟', name:'鳕鱼 100g',       cal:82,  p:18,  c:0,   f:0.7},
+  {cat:'seafood', emoji:'🐟', name:'巴沙鱼 100g',     cal:90,  p:13,  c:0,   f:3},
+  {cat:'seafood', emoji:'🐟', name:'带鱼 100g',       cal:127, p:17.7,c:3.1, f:4.9},
+  {cat:'seafood', emoji:'🦐', name:'虾仁 100g',       cal:99,  p:24,  c:0.2, f:0.3},
+  {cat:'seafood', emoji:'🦀', name:'蟹肉 100g',       cal:97,  p:19,  c:0,   f:1.5},
+  {cat:'seafood', emoji:'🦑', name:'鱿鱼 100g',       cal:84,  p:17,  c:1.4, f:0.9},
+  {cat:'seafood', emoji:'🐚', name:'扇贝 100g',       cal:88,  p:11,  c:2.4, f:0.8},
+  {cat:'seafood', emoji:'🐚', name:'蛤蜊 100g',       cal:62,  p:10,  c:2.5, f:1.1},
+  {cat:'seafood', emoji:'🐟', name:'秋刀鱼 100g',     cal:218, p:18,  c:0,   f:16},
+  {cat:'seafood', emoji:'🌿', name:'紫菜 10g 干',     cal:25,  p:2.7, c:4.4, f:0.1},
+
+  // ===== 主食 (18) =====
+  {cat:'staple', emoji:'🍚', name:'白米饭 100g',     cal:116, p:2.6, c:25.9, f:0.3},
+  {cat:'staple', emoji:'🍚', name:'糙米饭 100g',     cal:112, p:2.5, c:23,   f:1},
+  {cat:'staple', emoji:'🍚', name:'藜麦饭 100g',     cal:120, p:4.4, c:21,   f:1.9},
+  {cat:'staple', emoji:'🍠', name:'红薯 100g',       cal:86,  p:1.6, c:20,   f:0.1},
+  {cat:'staple', emoji:'🥔', name:'土豆 100g',       cal:77,  p:2,   c:17,   f:0.1},
+  {cat:'staple', emoji:'🌽', name:'玉米 1根 (200g)',cal:172, p:5.4, c:38,   f:2.4},
+  {cat:'staple', emoji:'🌾', name:'燕麦 50g 干',     cal:190, p:6.5, c:33,   f:3.5},
+  {cat:'staple', emoji:'🥣', name:'即食燕麦 30g',    cal:117, p:4,   c:20,   f:2.2},
+  {cat:'staple', emoji:'🍞', name:'全麦面包 1片(35g)',cal:90,  p:3,   c:16,   f:1.5},
+  {cat:'staple', emoji:'🍞', name:'吐司 1片 (40g)', cal:108, p:3.4, c:20,   f:1.5},
+  {cat:'staple', emoji:'🥐', name:'牛角包 1个',      cal:280, p:5.5, c:31,   f:14.5},
+  {cat:'staple', emoji:'🍜', name:'挂面 100g 干',    cal:351, p:11,  c:74,   f:0.7},
+  {cat:'staple', emoji:'🍜', name:'乌冬面 100g',     cal:115, p:3.8, c:24,   f:0.5},
+  {cat:'staple', emoji:'🍜', name:'意大利面 100g 干',cal:367, p:13,  c:74,   f:1.5},
+  {cat:'staple', emoji:'🥟', name:'饺子 10个 (200g)',cal:240, p:11,  c:32,   f:7.5},
+  {cat:'staple', emoji:'🫓', name:'馒头 1个 (100g)',cal:223, p:7,   c:47,   f:1.1},
+  {cat:'staple', emoji:'🍞', name:'包子 1个 (100g)',cal:227, p:9.5, c:36,   f:5.5},
+  {cat:'staple', emoji:'🍜', name:'米粉 100g',       cal:108, p:0.7, c:24,   f:0.1},
+
+  // ===== 蔬菜 (18) =====
+  {cat:'veggie', emoji:'🥦', name:'西兰花 200g',     cal:68, p:5.6,c:14,  f:0.6},
+  {cat:'veggie', emoji:'🥦', name:'菜花 200g',       cal:50, p:4,  c:10,  f:0.4},
+  {cat:'veggie', emoji:'🥬', name:'菠菜 200g',       cal:46, p:5.8,c:7.2, f:0.8},
+  {cat:'veggie', emoji:'🥬', name:'生菜 200g',       cal:30, p:2.6,c:4.4, f:0.4},
+  {cat:'veggie', emoji:'🥬', name:'白菜 200g',       cal:34, p:2.4,c:6.4, f:0.4},
+  {cat:'veggie', emoji:'🥬', name:'油麦菜 200g',     cal:30, p:3,  c:4.6, f:0.8},
+  {cat:'veggie', emoji:'🥬', name:'空心菜 200g',     cal:40, p:4.2,c:6,   f:0.6},
+  {cat:'veggie', emoji:'🍅', name:'番茄 1个 (150g)',cal:30, p:1.4,c:6,   f:0.3},
+  {cat:'veggie', emoji:'🥒', name:'黄瓜 1根 (200g)',cal:32, p:1.6,c:6,   f:0.4},
+  {cat:'veggie', emoji:'🥕', name:'胡萝卜 100g',     cal:39, p:1,  c:9,   f:0.2},
+  {cat:'veggie', emoji:'🌶', name:'青椒 100g',       cal:22, p:1,  c:5,   f:0.2},
+  {cat:'veggie', emoji:'🧅', name:'洋葱 100g',       cal:39, p:1.1,c:9,   f:0.2},
+  {cat:'veggie', emoji:'🍆', name:'茄子 100g',       cal:23, p:1.1,c:5.4, f:0.2},
+  {cat:'veggie', emoji:'🍄', name:'蘑菇 100g',       cal:24, p:2.7,c:4.1, f:0.1},
+  {cat:'veggie', emoji:'🥒', name:'冬瓜 200g',       cal:24, p:0.8,c:5.4, f:0.4},
+  {cat:'veggie', emoji:'🌽', name:'芦笋 100g',       cal:22, p:2.6,c:4.5, f:0.2},
+  {cat:'veggie', emoji:'🥬', name:'秋葵 100g',       cal:33, p:1.9,c:7.6, f:0.2},
+  {cat:'veggie', emoji:'🌿', name:'香菜 50g',        cal:12, p:1,  c:2.5, f:0.2},
+
+  // ===== 水果 (15) =====
+  {cat:'fruit', emoji:'🍎', name:'苹果 1个 (200g)',  cal:104, p:0.5,c:28, f:0.3},
+  {cat:'fruit', emoji:'🍌', name:'香蕉 1根 (120g)',  cal:108, p:1.3,c:28, f:0.4},
+  {cat:'fruit', emoji:'🍊', name:'橙子 1个 (200g)',  cal:96,  p:1.6,c:24, f:0.4},
+  {cat:'fruit', emoji:'🍐', name:'梨 1个 (200g)',    cal:88,  p:0.6,c:23, f:0.2},
+  {cat:'fruit', emoji:'🍇', name:'葡萄 100g',        cal:67,  p:0.6,c:17, f:0.2},
+  {cat:'fruit', emoji:'🍉', name:'西瓜 200g',        cal:52,  p:1.2,c:12, f:0.4},
+  {cat:'fruit', emoji:'🍑', name:'桃子 1个 (150g)',  cal:75,  p:1.2,c:18, f:0.2},
+  {cat:'fruit', emoji:'🍓', name:'草莓 100g',        cal:32,  p:1,  c:7.7,f:0.3},
+  {cat:'fruit', emoji:'🫐', name:'蓝莓 100g',        cal:57,  p:0.7,c:14, f:0.3},
+  {cat:'fruit', emoji:'🥝', name:'猕猴桃 1个 (100g)',cal:61,  p:1.1,c:15, f:0.5},
+  {cat:'fruit', emoji:'🍍', name:'菠萝 100g',        cal:50,  p:0.5,c:13, f:0.1},
+  {cat:'fruit', emoji:'🥑', name:'牛油果 1/2 (100g)',cal:160, p:2,  c:8,  f:15},
+  {cat:'fruit', emoji:'🍈', name:'哈密瓜 200g',      cal:68,  p:1.6,c:16, f:0.4},
+  {cat:'fruit', emoji:'🍒', name:'樱桃 100g',        cal:63,  p:1.1,c:16, f:0.2},
+  {cat:'fruit', emoji:'🍋', name:'柠檬 1个',         cal:23,  p:0.9,c:7.8,f:0.3},
+
+  // ===== 乳制品 (10) =====
+  {cat:'dairy', emoji:'🥛', name:'纯牛奶 250ml',     cal:135, p:8,  c:12,  f:7.5},
+  {cat:'dairy', emoji:'🥛', name:'低脂牛奶 250ml',   cal:108, p:8.5,c:13,  f:3},
+  {cat:'dairy', emoji:'🥛', name:'脱脂牛奶 250ml',   cal:85,  p:8.5,c:13,  f:0.3},
+  {cat:'dairy', emoji:'🥛', name:'希腊酸奶 100g',    cal:97,  p:9,  c:3.6, f:5},
+  {cat:'dairy', emoji:'🥛', name:'低脂酸奶 100g',    cal:60,  p:6,  c:7,   f:0.3},
+  {cat:'dairy', emoji:'🥛', name:'风味酸奶 100g',    cal:90,  p:3,  c:14,  f:2.5},
+  {cat:'dairy', emoji:'🧀', name:'马苏里拉芝士 30g',cal:84,  p:6.7,c:0.7, f:6.2},
+  {cat:'dairy', emoji:'🧀', name:'切达芝士 30g',     cal:121, p:7.5,c:0.4, f:10},
+  {cat:'dairy', emoji:'🥛', name:'奶酪 30g',         cal:99,  p:6,  c:0.8, f:8},
+  {cat:'dairy', emoji:'🍦', name:'冰淇淋 100g',      cal:207, p:3.5,c:24,  f:11},
+
+  // ===== 豆制品 (10) =====
+  {cat:'beans', emoji:'🟫', name:'北豆腐 100g',      cal:116, p:12,  c:2.4, f:6.7},
+  {cat:'beans', emoji:'🟫', name:'南豆腐 100g',      cal:81,  p:6.2, c:3,   f:4.2},
+  {cat:'beans', emoji:'🟫', name:'豆腐皮 100g',      cal:204, p:25,  c:7,   f:8.5},
+  {cat:'beans', emoji:'🟫', name:'豆干 100g',        cal:147, p:17,  c:5,   f:6.7},
+  {cat:'beans', emoji:'🟢', name:'毛豆 100g',        cal:131, p:13,  c:11,  f:5},
+  {cat:'beans', emoji:'🥛', name:'豆浆 250ml',       cal:80,  p:7,   c:7,   f:2.8},
+  {cat:'beans', emoji:'🟫', name:'红豆 50g 干',      cal:163, p:10,  c:31,  f:0.3},
+  {cat:'beans', emoji:'🟫', name:'绿豆 50g 干',      cal:163, p:11,  c:31,  f:0.4},
+  {cat:'beans', emoji:'🟫', name:'鹰嘴豆 50g 干',    cal:182, p:10,  c:30,  f:3},
+  {cat:'beans', emoji:'🟢', name:'黑豆 50g 干',      cal:170, p:18,  c:25,  f:7.5},
+
+  // ===== 坚果 (10) =====
+  {cat:'nuts', emoji:'🌰', name:'巴旦木 30g',        cal:174, p:6.3, c:6.6, f:15},
+  {cat:'nuts', emoji:'🌰', name:'核桃 30g',          cal:196, p:4.6, c:4,   f:19.5},
+  {cat:'nuts', emoji:'🌰', name:'腰果 30g',          cal:166, p:5.4, c:9.3, f:13},
+  {cat:'nuts', emoji:'🥜', name:'花生 30g',          cal:170, p:7.5, c:5,   f:14},
+  {cat:'nuts', emoji:'🌰', name:'开心果 30g',        cal:170, p:6,   c:8,   f:13.5},
+  {cat:'nuts', emoji:'🌰', name:'夏威夷果 30g',      cal:215, p:2.4, c:4.3, f:21.7},
+  {cat:'nuts', emoji:'🎃', name:'南瓜籽 20g',        cal:114, p:5.9, c:2.2, f:9.7},
+  {cat:'nuts', emoji:'🌻', name:'葵花籽 20g',        cal:117, p:4.2, c:4,   f:10},
+  {cat:'nuts', emoji:'🌰', name:'松子 20g',          cal:135, p:2.7, c:2.6, f:13.6},
+  {cat:'nuts', emoji:'🥥', name:'椰子片干 20g',      cal:132, p:1.4, c:5,   f:12.5},
+
+  // ===== 零食 (12) =====
+  {cat:'snack', emoji:'🍪', name:'饼干 50g',         cal:217, p:3.7, c:33,  f:7.5},
+  {cat:'snack', emoji:'🍫', name:'黑巧克力 30g',     cal:179, p:2.4, c:14,  f:13},
+  {cat:'snack', emoji:'🍫', name:'牛奶巧克力 30g',   cal:160, p:2.3, c:18,  f:9},
+  {cat:'snack', emoji:'🥨', name:'薯片 30g',         cal:165, p:2,   c:15,  f:10.5},
+  {cat:'snack', emoji:'🍿', name:'爆米花 30g (无油)',cal:117, p:3.5, c:23,  f:1.4},
+  {cat:'snack', emoji:'🍰', name:'蛋糕 1块 (100g)',  cal:347, p:5,   c:55,  f:13},
+  {cat:'snack', emoji:'🧁', name:'蛋挞 1个 (50g)',   cal:165, p:3,   c:18,  f:9},
+  {cat:'snack', emoji:'🍩', name:'甜甜圈 1个',       cal:253, p:4,   c:31,  f:13},
+  {cat:'snack', emoji:'🍮', name:'布丁 100g',        cal:120, p:3,   c:20,  f:3.5},
+  {cat:'snack', emoji:'🍡', name:'麻薯 1个 (40g)',   cal:120, p:1.5, c:25,  f:1.5},
+  {cat:'snack', emoji:'🍬', name:'糖果 20g (5颗)',   cal:80,  p:0,   c:20,  f:0},
+  {cat:'snack', emoji:'🌭', name:'肉脯 30g',         cal:100, p:13,  c:10,  f:2},
+
+  // ===== 饮品 (12) =====
+  {cat:'drink', emoji:'☕', name:'美式咖啡 1杯',     cal:5,   p:0.3, c:0,   f:0},
+  {cat:'drink', emoji:'☕', name:'无糖拿铁 1杯',     cal:94,  p:6,   c:7,   f:5},
+  {cat:'drink', emoji:'☕', name:'卡布奇诺 1杯',     cal:74,  p:4,   c:6,   f:4},
+  {cat:'drink', emoji:'🥤', name:'可乐 330ml',       cal:139, p:0,   c:35,  f:0},
+  {cat:'drink', emoji:'🥤', name:'雪碧 330ml',       cal:128, p:0,   c:33,  f:0},
+  {cat:'drink', emoji:'🍵', name:'无糖绿茶 500ml',   cal:0,   p:0,   c:0,   f:0},
+  {cat:'drink', emoji:'🧃', name:'橙汁 250ml',       cal:115, p:1.5, c:27,  f:0.5},
+  {cat:'drink', emoji:'🧋', name:'珍珠奶茶 500ml',   cal:380, p:6,   c:67,  f:9},
+  {cat:'drink', emoji:'🧋', name:'纯茶 (无糖) 500ml',cal:0,   p:0,   c:0,   f:0},
+  {cat:'drink', emoji:'🍺', name:'啤酒 330ml',       cal:140, p:1,   c:11,  f:0},
+  {cat:'drink', emoji:'🍷', name:'红酒 150ml',       cal:125, p:0.1, c:4,   f:0},
+  {cat:'drink', emoji:'🥃', name:'威士忌 30ml',      cal:70,  p:0,   c:0,   f:0},
+
+  // ===== 外食 (12) =====
+  {cat:'takeout', emoji:'🍔', name:'汉堡 1个',        cal:540, p:25, c:40,  f:30},
+  {cat:'takeout', emoji:'🍕', name:'披萨 1块',        cal:285, p:12, c:36,  f:10},
+  {cat:'takeout', emoji:'🍱', name:'便利店饭团 1个', cal:180, p:3.5,c:38,  f:1.5},
+  {cat:'takeout', emoji:'🍜', name:'兰州拉面 1碗',   cal:580, p:25, c:90,  f:13},
+  {cat:'takeout', emoji:'🍱', name:'麻辣烫 1人份',   cal:600, p:30, c:50,  f:30},
+  {cat:'takeout', emoji:'🍚', name:'盖浇饭 1份',     cal:700, p:25, c:95,  f:22},
+  {cat:'takeout', emoji:'🍣', name:'寿司 8贯',       cal:330, p:14, c:55,  f:5},
+  {cat:'takeout', emoji:'🥡', name:'宫保鸡丁 1份',   cal:480, p:25, c:30,  f:28},
+  {cat:'takeout', emoji:'🍱', name:'番茄炒蛋 1份',   cal:280, p:13, c:12,  f:20},
+  {cat:'takeout', emoji:'🍚', name:'扬州炒饭 1份',   cal:580, p:18, c:75,  f:22},
+  {cat:'takeout', emoji:'🌮', name:'墨西哥卷 1个',   cal:450, p:18, c:48,  f:20},
+  {cat:'takeout', emoji:'🥗', name:'鸡胸沙拉 1份',   cal:320, p:30, c:18,  f:14},
+
+  // ===== 调味油脂 (8) =====
+  {cat:'condiment', emoji:'🫒', name:'橄榄油 1勺 (5g)',  cal:45,  p:0,  c:0,   f:5},
+  {cat:'condiment', emoji:'🥛', name:'花生酱 1勺 (15g)',cal:94,  p:3.7,c:3,   f:8},
+  {cat:'condiment', emoji:'🟫', name:'黄油 1勺 (10g)',  cal:74,  p:0.1,c:0,   f:8.2},
+  {cat:'condiment', emoji:'🍯', name:'蜂蜜 1勺 (15g)',  cal:46,  p:0,  c:12,  f:0},
+  {cat:'condiment', emoji:'🟫', name:'白砂糖 1勺 (5g)', cal:20,  p:0,  c:5,   f:0},
+  {cat:'condiment', emoji:'🥄', name:'番茄酱 1勺 (15g)',cal:15,  p:0.3,c:3.5, f:0.05},
+  {cat:'condiment', emoji:'🥄', name:'沙拉酱 1勺 (15g)',cal:108, p:0.2,c:0.5, f:11.5},
+  {cat:'condiment', emoji:'🥄', name:'酱油 1勺 (10ml)', cal:6,   p:0.8,c:0.8, f:0}
+];
+
+// 兼容旧调用：返回带 cat 字段的扁平数组
+function systemFoods(){ return FOOD_LIBRARY; }
 function exerciseTypes(){ return [
   {name:'慢跑', icon:'footprints', met:6.0, type:'有氧'},
   {name:'快跑', icon:'rabbit', met:10.0, type:'有氧'},
@@ -2017,39 +2340,259 @@ function nowHHMM(){
   return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
 }
 
+// ============================================================
+// 食物 Tab 系统 v13
+// ============================================================
+function switchFoodTab(tabId){
+  $('food-cur-tab').value = tabId;
+  document.querySelectorAll('.food-tab').forEach(t=>t.classList.toggle('on', t.dataset.tab===tabId));
+  renderFoodTab();
+}
+
+function renderFoodTab(){
+  const tab = $('food-cur-tab')?.value || 'frequent';
+  const kw = ($('food-search')?.value || '').toLowerCase().trim();
+  const body = $('food-tab-body');
+  if(!body) return;
+
+  if(tab === 'frequent'){
+    const recent = recentFoods();
+    if(!recent.length){
+      body.innerHTML = '<p class="empty"><i class="lucide lucide-flame"></i>近 7 天还没有吃过的记录<br><span class="text-[10px]">从「食物库」开始记录吧</span></p>';
+      setMealData([]);
+      return;
+    }
+    const filtered = kw ? recent.filter(p=>p.name.toLowerCase().includes(kw)) : recent;
+    setMealData(filtered);
+    body.innerHTML = `
+      <p class="text-[11px] text-slate-400 mb-2">近 7 天最常吃 · ${filtered.length} 项</p>
+      <div class="space-y-2 max-h-72 overflow-y-auto" style="scrollbar-width:none">
+        ${filtered.length ? filtered.map((p,i)=>foodRow({...p, _badge:`×${p.count}`}, i)).join('') : '<p class="empty">没有匹配项</p>'}
+      </div>
+    `;
+  }
+  else if(tab === 'library'){
+    const all = systemFoods();
+    const filtered = kw ? all.filter(p=>p.name.toLowerCase().includes(kw)) : all;
+    setMealData(filtered);
+    if(kw){
+      // 搜索模式：扁平结果
+      body.innerHTML = `<div class="space-y-2 max-h-72 overflow-y-auto" style="scrollbar-width:none">${filtered.length ? filtered.map((p,i)=>foodRow(p,i)).join('') : '<p class="empty">没有匹配食物</p>'}</div>`;
+    } else {
+      // 分组渲染
+      let html = '<div class="max-h-80 overflow-y-auto" style="scrollbar-width:none">';
+      let globalIdx = 0;
+      FOOD_CATEGORIES.forEach(cat=>{
+        const items = all.filter(f=>f.cat===cat.id);
+        if(!items.length) return;
+        html += `<div class="cat-header" style="color:${cat.color}"><i class="lucide lucide-${cat.icon}"></i>${cat.name} <span class="text-slate-500 font-normal">(${items.length})</span></div>`;
+        html += '<div class="space-y-2">';
+        items.forEach(p=>{
+          html += foodRow(p, globalIdx);
+          globalIdx++;
+        });
+        html += '</div>';
+      });
+      html += '</div>';
+      body.innerHTML = html;
+    }
+  }
+  else if(tab === 'combos'){
+    const combos = cache.mealCombos || [];
+    const filtered = kw ? combos.filter(c=>c.name.toLowerCase().includes(kw)) : combos;
+    setMealData([]);
+    body.innerHTML = `
+      <button class="btn-primary mb-3" onclick="openSheet('combo-edit')">+ 新建套餐</button>
+      ${filtered.length ? `
+        <div class="space-y-2 max-h-72 overflow-y-auto" style="scrollbar-width:none">
+          ${filtered.map(c=>{
+            const items = c.items_json || [];
+            const totCal = items.reduce((s,it)=>s + it.cal*it.qty, 0);
+            const totP = items.reduce((s,it)=>s + it.p*it.qty, 0);
+            const preview = items.slice(0,3).map(it=>it.emoji||'🍽').join('');
+            return `<div class="combo-card" onclick='openSheet("combo-detail", ${JSON.stringify(c).replace(/'/g,"&#39;")})'>
+              <div class="flex justify-between items-center">
+                <p class="text-sm font-bold">${c.name}</p>
+                <p class="text-sm font-bold" style="color:var(--primary)">${Math.round(totCal)}<span class="text-[10px] text-slate-400 font-normal">kcal</span></p>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">${preview} ${items.length} 项 · 蛋白 ${totP.toFixed(0)}g</p>
+            </div>`;
+          }).join('')}
+        </div>
+      ` : '<p class="empty"><i class="lucide lucide-utensils-crossed"></i>还没有套餐<br><span class="text-[10px]">把常吃的几样食物组合起来，下次一键添加</span></p>'}
+    `;
+  }
+  else if(tab === 'favorite'){
+    const favs = cache.favoriteFoods || [];
+    const filtered = kw ? favs.filter(f=>f.name.toLowerCase().includes(kw)) : favs;
+    setMealData(filtered);
+    body.innerHTML = `
+      ${filtered.length ? `
+        <p class="text-[11px] text-slate-400 mb-2">⭐ ${filtered.length} 项收藏</p>
+        <div class="space-y-2 max-h-72 overflow-y-auto" style="scrollbar-width:none">
+          ${filtered.map((p,i)=>foodRow(p,i)).join('')}
+        </div>
+      ` : '<p class="empty"><i class="lucide lucide-star"></i>还没有收藏<br><span class="text-[10px]">在食物详情页点 ⭐ 添加</span></p>'}
+    `;
+  }
+  else if(tab === 'custom'){
+    const cf = cache.customFoods || [];
+    const filtered = kw ? cf.filter(f=>f.name.toLowerCase().includes(kw)) : cf;
+    setMealData(filtered);
+    body.innerHTML = `
+      <button class="btn-primary mb-3" onclick="openSheet('custom-food')">+ 新建自定义食物</button>
+      ${filtered.length ? `
+        <div class="space-y-2 max-h-72 overflow-y-auto" style="scrollbar-width:none">
+          ${filtered.map((p,i)=>foodRow(p,i)).join('')}
+        </div>
+      ` : '<p class="empty"><i class="lucide lucide-sparkles"></i>还没有自定义食物<br><span class="text-[10px]">系统库里没有的，自己加</span></p>'}
+    `;
+  }
+}
+
+function setMealData(arr){
+  const el = $('meal-data');
+  if(el) el.value = JSON.stringify(arr).replace(/'/g,"&#39;");
+}
+
 function foodRow(p, i){
   return `<div class="food-row" onclick="openSheet('food-detail', ${i})">
     <div class="text-2xl">${p.emoji||'🍽'}</div>
     <div class="flex-1">
-      <p class="text-sm font-semibold">${p.name}</p>
+      <p class="text-sm font-semibold">${p.name}${p._badge?` <span class="text-[10px] text-slate-400 font-normal">${p._badge}</span>`:''}</p>
       <p class="text-[10px] text-slate-400">P ${p.p}g · C ${p.c}g · F ${p.f}g</p>
     </div>
     <p class="text-sm font-bold number-tabular">${p.cal}<span class="text-[10px] text-slate-400 font-normal">kcal</span></p>
   </div>`;
 }
-function filterFoodList(){
-  const kw = ($('food-search').value||'').toLowerCase().trim();
-  const lib = JSON.parse($('meal-data').value);
-  const list = $('food-list');
-  const filtered = lib.map((p,i)=>({...p, i})).filter(p=>!kw || p.name.toLowerCase().includes(kw));
-  list.innerHTML = filtered.length ? filtered.map(p=>foodRow(p, p.i)).join('') : '<p class="empty">没有找到匹配食物</p>';
-}
+
+// 兼容旧调用（v12 之前用的）
+function filterFoodList(){ renderFoodTab(); }
+
 function recentFoods(){
   const counter = {};
   for(let i=0;i<7;i++){
     const d = new Date(); d.setDate(d.getDate()-i);
     cache.food.filter(x=>x.date===fmtDate(d)).forEach(x=>{
-      if(!counter[x.name]) counter[x.name] = { ...x, count:0 };
+      if(!counter[x.name]) counter[x.name] = { name:x.name, emoji:x.emoji, cal:x.cal, p:x.p, c:x.c, f:x.f, count:0 };
       counter[x.name].count++;
     });
   }
-  return Object.values(counter).sort((a,b)=>b.count-a.count).slice(0,6);
+  return Object.values(counter).sort((a,b)=>b.count-a.count).slice(0,12);
 }
 function quickAddRecent(name){
   const lib = JSON.parse($('meal-data').value);
   const i = lib.findIndex(x=>x.name===name);
   if(i>=0) openSheet('food-detail', i);
 }
+
+// ============================================================
+// 收藏功能
+// ============================================================
+function isFoodFavorite(name){
+  return (cache.favoriteFoods || []).some(f=>f.name===name);
+}
+async function toggleFavorite(name, emoji, cal, p, c, f){
+  const existing = (cache.favoriteFoods || []).find(x=>x.name===name);
+  if(existing){
+    const { error } = await sb.from('favorite_foods').delete().eq('id', existing.id);
+    if(error){ toast(error.message,'error'); return; }
+    cache.favoriteFoods = cache.favoriteFoods.filter(x=>x.id!==existing.id);
+    toast('已取消收藏');
+  } else {
+    const row = { user_id: session.user.id, name, emoji, cal, p, c, f };
+    const { data, error } = await sb.from('favorite_foods').insert(row).select().single();
+    if(error){ toast(error.message,'error'); return; }
+    cache.favoriteFoods.push(data);
+    toast('已收藏 ⭐');
+  }
+  // 重渲染当前 sheet
+  const idx = parseInt($('food-idx')?.value);
+  if(!isNaN(idx)) openSheet('food-detail', idx);
+}
+
+// ============================================================
+// 套餐功能
+// ============================================================
+function getCombo(id){ return cache.mealCombos.find(c=>c.id===id); }
+
+function comboOpenAddPicker(){
+  // 先把当前编辑中的套餐 items 暂存到 sessionStorage
+  const id = $('combo-edit-id').value;
+  const name = $('combo-name').value;
+  const items = JSON.parse($('combo-edit-items').value || '[]');
+  sessionStorage.setItem('comboEditing', JSON.stringify({id, name, items, returnTo:'combo-edit'}));
+  // 跳转到食物库 Tab，让用户选食物
+  toast('选食物 → 设份量 → 加入套餐');
+  openSheet('food');
+  setTimeout(()=>{ switchFoodTab('library'); }, 100);
+}
+
+function comboRemoveItem(idx){
+  const items = JSON.parse($('combo-edit-items').value || '[]');
+  items.splice(idx, 1);
+  const editing = $('combo-edit-id').value ? cache.mealCombos.find(c=>c.id==$('combo-edit-id').value) : null;
+  if(editing){ editing.items_json = items; openSheet('combo-edit', editing); }
+  else { sessionStorage.setItem('comboEditing', JSON.stringify({id:'', name:$('combo-name').value, items})); openSheet('combo-edit', {items_json:items, name:$('combo-name').value}); }
+}
+
+async function saveCombo(){
+  const name = $('combo-name').value.trim();
+  const items = JSON.parse($('combo-edit-items').value || '[]');
+  if(!name){ toast('请输入套餐名称','error'); return; }
+  if(!items.length){ toast('套餐里至少要加一项食物','error'); return; }
+  const id = $('combo-edit-id').value;
+  if(id){
+    // update
+    const { data, error } = await sb.from('meal_combos').update({ name, items_json:items }).eq('id', id).select().single();
+    if(error){ toast(error.message,'error'); return; }
+    const i = cache.mealCombos.findIndex(c=>c.id==id);
+    if(i>=0) cache.mealCombos[i] = data;
+    toast('套餐已更新 ✓');
+  } else {
+    const { data, error } = await sb.from('meal_combos').insert({ user_id:session.user.id, name, items_json:items }).select().single();
+    if(error){ toast(error.message,'error'); return; }
+    cache.mealCombos.unshift(data);
+    toast('套餐已保存 ✓');
+  }
+  sessionStorage.removeItem('comboEditing');
+  openSheet('food');
+  setTimeout(()=>switchFoodTab('combos'), 100);
+}
+
+async function deleteCombo(id){
+  if(!confirm('确定删除此套餐吗？')) return;
+  const { error } = await sb.from('meal_combos').delete().eq('id', id);
+  if(error){ toast(error.message,'error'); return; }
+  cache.mealCombos = cache.mealCombos.filter(c=>c.id!==id);
+  toast('已删除');
+  openSheet('food');
+  setTimeout(()=>switchFoodTab('combos'), 100);
+}
+
+async function addComboToMeal(comboId){
+  const c = getCombo(comboId);
+  if(!c) return;
+  const items = c.items_json || [];
+  const meal = document.querySelector('#combo-meal-seg button.on').dataset.meal;
+  const date = today();
+  const rows = items.map(it=>({
+    user_id: session.user.id,
+    date, meal,
+    name: it.name, emoji: it.emoji,
+    cal: it.cal*it.qty, p: it.p*it.qty, c: it.c*it.qty, f: it.f*it.qty
+  }));
+  const { data, error } = await sb.from('food_records').insert(rows).select();
+  if(error){ toast(error.message,'error'); return; }
+  cache.food.push(...data);
+  closeSheet();
+  refreshAll();
+  toast(`套餐「${c.name}」已加入${({breakfast:'早餐',lunch:'午餐',dinner:'晚餐',snack:'加餐'})[meal]} ✓`);
+}
+
+// ============================================================
+// 自定义食物
+// ============================================================
 async function saveCustomFood(){
   const f = {
     name: $('cf-name').value.trim(),
@@ -2067,11 +2610,34 @@ async function saveCustomFood(){
   cache.customFoods.push(data);
   toast('已加入食物库 ✓');
   openSheet('food');
+  setTimeout(()=>switchFoodTab('custom'), 100);
 }
 
 function qStep(delta){
   const inp = $('food-qty');
   inp.value = Math.max(0.1, +(parseFloat(inp.value||1) + delta).toFixed(1));
+  qPreview();
+  // 同步克数
+  const gIn = $('food-gram');
+  if(gIn){
+    const baseG = parseFloat(gIn.dataset.baseg || gIn.placeholder || '0');
+    if(baseG) gIn.value = Math.round(baseG * parseFloat(inp.value));
+  }
+}
+// 倍数 → 克重
+function syncGramFromQty(baseG){
+  if(!baseG) return;
+  const q = parseFloat($('food-qty').value)||1;
+  const gIn = $('food-gram'); if(!gIn) return;
+  gIn.value = Math.round(baseG * q);
+}
+// 克重 → 倍数（用户改克数时联动倍数和营养）
+function syncQtyFromGram(baseG){
+  if(!baseG) return;
+  const g = parseFloat($('food-gram').value)||0;
+  const q = +(g / baseG).toFixed(2);
+  $('food-qty').value = q;
+  document.querySelectorAll('.qty-presets button').forEach(b=>b.classList.remove('on'));
   qPreview();
 }
 // 通用数字 stepper：增减任意 input
@@ -2144,9 +2710,25 @@ async function saveWeight(){
 
 async function addFood(idx, qty){
   const lib = JSON.parse($('meal-data').value);
-  const meal = document.querySelector('#meal-seg button.on').dataset.meal;
   const item = lib[idx];
   qty = qty || 1;
+
+  // 检查：是不是在「编辑套餐」流程中？是的话加到 combo items，不写库
+  const editing = sessionStorage.getItem('comboEditing');
+  if(editing){
+    const e = JSON.parse(editing);
+    e.items = e.items || [];
+    e.items.push({ name:item.name, emoji:item.emoji, cal:item.cal, p:item.p, c:item.c, f:item.f, qty });
+    sessionStorage.setItem('comboEditing', JSON.stringify(e));
+    toast(`已加入套餐：${item.name} ×${qty}`);
+    // 回到套餐编辑
+    const comboObj = e.id ? cache.mealCombos.find(c=>c.id==e.id) : null;
+    if(comboObj){ comboObj.items_json = e.items; openSheet('combo-edit', comboObj); }
+    else { openSheet('combo-edit', { name:e.name, items_json:e.items }); }
+    return;
+  }
+
+  const meal = document.querySelector('#meal-seg button.on').dataset.meal;
   const now = new Date();
   const tm = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   const row = {

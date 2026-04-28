@@ -240,3 +240,39 @@ alter table public.user_status enable row level security;
 drop policy if exists "user_status_owner_all" on public.user_status;
 create policy "user_status_owner_all" on public.user_status
   for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- ============================================================
+-- v13 追加：饮食模块大改造
+-- favorite_foods 收藏的食物
+-- meal_combos    用户自建套餐（items_json 存 [{name,emoji,cal,p,c,f,qty}]）
+-- ============================================================
+create table if not exists public.favorite_foods (
+  id bigserial primary key,
+  user_id uuid not null references auth.users on delete cascade,
+  name text not null,
+  emoji text,
+  cal numeric not null,
+  p numeric default 0,
+  c numeric default 0,
+  f numeric default 0,
+  created_at timestamptz default now(),
+  unique (user_id, name)
+);
+create index if not exists idx_fav_user on public.favorite_foods (user_id);
+alter table public.favorite_foods enable row level security;
+drop policy if exists "favorite_foods_owner_all" on public.favorite_foods;
+create policy "favorite_foods_owner_all" on public.favorite_foods
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create table if not exists public.meal_combos (
+  id bigserial primary key,
+  user_id uuid not null references auth.users on delete cascade,
+  name text not null,
+  items_json jsonb not null default '[]'::jsonb,
+  created_at timestamptz default now()
+);
+create index if not exists idx_combo_user on public.meal_combos (user_id);
+alter table public.meal_combos enable row level security;
+drop policy if exists "meal_combos_owner_all" on public.meal_combos;
+create policy "meal_combos_owner_all" on public.meal_combos
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
