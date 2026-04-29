@@ -68,18 +68,21 @@
     padding:8px 16px 24px; background:rgba(11,15,20,.85);
     backdrop-filter:blur(24px); border-top:1px solid rgba(255,255,255,.04);
     display:flex; align-items:center; z-index:40; }
-  .tab-item{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;
-    color:var(--muted); font-size:9px; font-weight:600; cursor:pointer;
+  .tab-item{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+    color:var(--muted); font-size:10px; font-weight:600; cursor:pointer;
     background:transparent; border:none; padding:6px 0; transition:color .2s; }
-  .tab-item i{ font-size:19px; }
+  .tab-item i{ font-size:21px; }
   .tab-item.active{ color:var(--primary); }
   .tab-item:active{ transform:scale(.92); }
-  /* v15.2: 训练 tab 视觉强化（取代 FAB 中心按钮） */
-  .tab-item.tab-cta{ position:relative; }
-  .tab-item.tab-cta::before{ content:''; position:absolute; top:2px; left:50%; transform:translateX(-50%); width:36px; height:36px; border-radius:12px; background:linear-gradient(135deg, rgba(255,122,69,.20), rgba(255,77,109,.14)); border:1px solid rgba(255,122,69,.30); z-index:-1; }
-  .tab-item.tab-cta i{ color:var(--primary); }
-  .tab-item.tab-cta.active::before{ background:linear-gradient(135deg, rgba(255,122,69,.42), rgba(255,77,109,.30)); box-shadow:0 4px 14px rgba(255,122,69,.45); }
-  .tab-item.tab-cta.active i{ color:#fff; }
+  /* v16: FAB 中央 + 号 */
+  .fab{ position:absolute; bottom:34px; left:50%; transform:translateX(-50%);
+    width:58px; height:58px; border-radius:18px;
+    background:linear-gradient(135deg,#FF7A45,#FF4D6D);
+    box-shadow:0 10px 24px -6px rgba(255,122,69,.7), 0 0 0 4px rgba(11,15,20,.95), inset 0 1px 0 rgba(255,255,255,.2);
+    display:flex; align-items:center; justify-content:center; color:white;
+    z-index:45; cursor:pointer; border:none; transition:transform .18s; }
+  .fab:active{ transform:translateX(-50%) scale(.92); }
+  .fab i{ font-size:26px; stroke-width:2.6; }
   .pill{ display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:999px; font-size:10px; font-weight:600; }
   .seg{ display:flex; background:rgba(255,255,255,.05); border-radius:11px; padding:3px; }
   .seg button{ flex:1; padding:6px 0; border-radius:8px; font-size:11px; font-weight:600; color:var(--muted); border:none; background:transparent; cursor:pointer; transition:all .2s; }
@@ -284,9 +287,6 @@
           <h2 class="text-2xl font-black mt-0.5">早安，<span id="hi-name">CLAW</span> <span class="text-base">👋</span></h2>
         </div>
         <div class="flex items-center gap-2">
-          <button class="w-10 h-10 rounded-2xl flex items-center justify-center grad-primary text-white" style="border:none; cursor:pointer; box-shadow:0 6px 16px -4px rgba(255,122,69,.55), inset 0 1px 0 rgba(255,255,255,.2)" onclick="openSheet('quick')" title="快速记录">
-            <i class="lucide lucide-plus" style="font-size:20px; stroke-width:2.6"></i>
-          </button>
           <button class="w-10 h-10 rounded-2xl flex items-center justify-center" style="background:var(--panel); border:none; cursor:pointer" onclick="toast('暂无新通知 · 保持节奏 💪')">
             <i class="lucide lucide-bell text-slate-300"></i>
           </button>
@@ -811,6 +811,17 @@
         </div>
       </div>
 
+      <!-- v16: 数据中心入口（替代独立 data tab） -->
+      <div class="mt-5">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-bold text-sm flex items-center gap-2"><i class="lucide lucide-bar-chart-3" style="color:var(--primary); font-size:14px"></i>我的数据</h3>
+          <span class="text-[10px] text-slate-400">点击查看趋势</span>
+        </div>
+        <div class="grid grid-cols-2 gap-3" id="me-data-cards">
+          <!-- 由 renderMeDataCards() 注入 -->
+        </div>
+      </div>
+
       <div class="mt-5">
         <div class="flex items-center justify-between mb-3">
           <h3 class="font-bold text-sm">我的减脂计划</h3>
@@ -893,14 +904,15 @@
     </div>
   </div>
 
-  <!-- 底部 TabBar (v15.2: 5 项平铺，FAB 已废弃) -->
+  <!-- 底部 TabBar (v16: 4 tab + 中央 FAB) -->
   <div class="tabbar" id="tabbar" style="display:none">
     <button class="tab-item active" data-tab="home"><i class="lucide lucide-home"></i><span>首页</span></button>
-    <button class="tab-item" data-tab="data"><i class="lucide lucide-bar-chart-3"></i><span>数据</span></button>
-    <button class="tab-item tab-cta" data-tab="training"><i class="lucide lucide-dumbbell"></i><span>训练</span></button>
+    <button class="tab-item" data-tab="training"><i class="lucide lucide-dumbbell"></i><span>训练</span></button>
+    <div style="width:60px"></div>
     <button class="tab-item" data-tab="plan"><i class="lucide lucide-clipboard-list"></i><span>打卡</span></button>
     <button class="tab-item" data-tab="me"><i class="lucide lucide-user"></i><span>我的</span></button>
   </div>
+  <button class="fab" id="fab" onclick="openSheet('quick')" style="display:none"><i class="lucide lucide-plus"></i></button>
 
   <!-- 弹层 -->
   <div class="sheet-mask" id="mask" onclick="closeSheet()"></div>
@@ -1497,6 +1509,7 @@ document.querySelectorAll('.tab-item').forEach(t=>{
     if(tab==='data') setTimeout(()=>renderCharts(30), 50);
     if(tab==='plan') renderRecordList(currentCat());
     if(tab==='training') setTimeout(renderTrainingPage, 50);
+    if(tab==='me') setTimeout(()=>{ if(typeof renderMeDataCards==='function') renderMeDataCards(); }, 50);
     // v15: 训练 tab 隐藏 FAB（避免遮挡 + 训练 tab 已有大按钮）
     if($('fab')) $('fab').style.display = (tab==='training') ? 'none' : '';
   });
@@ -1550,9 +1563,8 @@ function openSheet(type, payload){
   // 初始化需要后置脚本的 sheet
   if(type === 'food'){
     setTimeout(()=>{
-      // 如果是从套餐编辑跳过来选食物，自动切到食物库 Tab
-      if(sessionStorage.getItem('comboEditing')) switchFoodTab('library');
-      else renderFoodTab();
+      // v16: 套餐编辑跳过来选食物，不再强制切 library，用户可在 library/custom/favorite 间自由选
+      renderFoodTab();
     }, 20);
   }
   if(type === 'food-detail'){
@@ -2060,16 +2072,23 @@ function sheetTemplate(type, payload){
       </div>
 
       <p class="text-[11px] text-slate-400 mt-3 mb-1">已加入的食物</p>
-      <div id="combo-items" class="space-y-2 max-h-40 overflow-y-auto" style="scrollbar-width:none">
-        ${items.length ? items.map((it,i)=>`
-          <div class="food-row" style="cursor:default">
+      <div id="combo-items" class="space-y-2 max-h-48 overflow-y-auto" style="scrollbar-width:none">
+        ${items.length ? items.map((it,i)=>{
+          const cleanName = (it.name||'').replace(/\s*\d+(?:\.\d+)?\s*(g|ml).*$/i,'');
+          const portion = it.grams ? `${it.grams}g` : (it.qty&&Number(it.qty)!==1 ? `×${it.qty}` : '');
+          return `
+          <div class="food-row" style="cursor:default; align-items:flex-start">
             <span class="text-lg">${it.emoji||'🍽'}</span>
-            <div class="flex-1">
-              <p class="text-sm font-semibold">${it.name}</p>
-              <p class="text-[10px] text-slate-400">×${it.qty} · ${Math.round(it.cal*it.qty)}kcal</p>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="text-sm font-semibold truncate">${cleanName}</span>
+                ${portion?`<span class="text-[10px] text-slate-500">${portion}</span>`:''}
+              </div>
+              <p class="text-[10px] text-slate-400 number-tabular mt-0.5">${Math.round((it.cal||0)*(it.qty||1))} kcal · P${(+(it.p||0)*(it.qty||1)).toFixed(1)} C${(+(it.c||0)*(it.qty||1)).toFixed(1)} F${(+(it.f||0)*(it.qty||1)).toFixed(1)}</p>
             </div>
             <button class="swipe-del" onclick="comboRemoveItem(${i})">删</button>
-          </div>`).join('') : '<p class="empty">还没添加食物</p>'}
+          </div>`;
+        }).join('') : '<p class="empty">还没添加食物 · 点下方按钮选食物</p>'}
       </div>
 
       <button class="btn-primary mt-3" onclick="comboOpenAddPicker()">+ 添加食物到套餐</button>
@@ -3078,6 +3097,103 @@ function openStartWorkoutSheet(){
 function goToTrainingTab(){
   const btn = document.querySelector('.tab-item[data-tab="training"]');
   if(btn) btn.click();
+}
+
+// v16: 跳到 screen-data 数据详情页
+function goToDataDetail(){
+  // tabbar 没有 data 项了，手动切 screen
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab-item').forEach(x=>x.classList.remove('active'));
+  $('screen-data').classList.add('active');
+  if($('fab')) $('fab').style.display = '';
+  setTimeout(()=>renderCharts(30), 50);
+  // 顶部加返回按钮（运行时注入）
+  ensureDataDetailBackBtn();
+}
+function ensureDataDetailBackBtn(){
+  const screen = $('screen-data'); if(!screen) return;
+  if($('data-back-btn')) return;
+  const scroll = screen.querySelector('.scroll'); if(!scroll) return;
+  const backBar = document.createElement('div');
+  backBar.id = 'data-back-btn';
+  backBar.style.cssText = 'display:flex; align-items:center; gap:6px; cursor:pointer; padding:8px 0; font-size:12px; font-weight:600; color:#94a3b8;';
+  backBar.innerHTML = '<i class="lucide lucide-chevron-left" style="font-size:16px"></i><span>返回我的</span>';
+  backBar.onclick = ()=>{
+    const meBtn = document.querySelector('.tab-item[data-tab="me"]');
+    if(meBtn) meBtn.click();
+  };
+  scroll.insertBefore(backBar, scroll.firstChild);
+}
+
+// v16: 渲染「我的」页的数据卡入口
+function renderMeDataCards(){
+  const wrap = $('me-data-cards'); if(!wrap) return;
+  // 体重数据
+  const wList = cache.weights || [];
+  const lastW = wList[wList.length-1];
+  const prevW = wList[wList.length-2];
+  const dW = (lastW && prevW) ? (Number(lastW.kg)-Number(prevW.kg)) : 0;
+  const startW = profile?.start_weight || 0;
+  const lostW = startW && lastW ? (startW - Number(lastW.kg)) : 0;
+  // 营养数据：近 7 天平均摄入
+  const today_ = new Date();
+  const week = [];
+  for(let i=0;i<7;i++){ const d = new Date(today_.getTime()-i*86400000).toISOString().slice(0,10); week.push(d); }
+  const dailyCals = week.map(d=>(cache.food||[]).filter(x=>x.date===d).reduce((s,x)=>s+Number(x.cal||0),0));
+  const avgCal = Math.round(dailyCals.reduce((a,b)=>a+b,0)/7);
+  // 围度
+  const lastBm = (cache.bodyMeasures||[])[(cache.bodyMeasures||[]).length-1];
+  const waistStr = lastBm?.waist ? lastBm.waist + ' cm' : '— ';
+  // 睡眠
+  const lastSleep = (cache.sleep||[])[(cache.sleep||[]).length-1];
+  const sleepHr = lastSleep?.hours ? Number(lastSleep.hours).toFixed(1) + 'h' : '— ';
+
+  const cards = [
+    {
+      icon:'scale', color:'var(--pink)', bg:'rgba(255,107,139,.15)',
+      title:'体重趋势',
+      main: lastW ? Number(lastW.kg).toFixed(1) : '--', unit:'kg',
+      sub: lostW>0 ? `已减 ${lostW.toFixed(1)} kg` : (lastW ? '保持中' : '尚未记录'),
+      trend: dW===0?'':(dW<0?`▼ ${Math.abs(dW).toFixed(1)}`:`▲ ${dW.toFixed(1)}`),
+      trendCol: dW<0?'var(--accent)':'var(--danger)',
+    },
+    {
+      icon:'utensils', color:'var(--primary)', bg:'rgba(255,122,69,.15)',
+      title:'营养摄入',
+      main: avgCal||'0', unit:'kcal',
+      sub:`近 7 天日均`,
+      trend:'',
+      trendCol:'',
+    },
+    {
+      icon:'ruler', color:'#B478FF', bg:'rgba(180,120,255,.15)',
+      title:'围度变化',
+      main: lastBm?.waist || '--', unit:lastBm?.waist?'cm':'',
+      sub:lastBm ? '腰围 · '+(lastBm.date||'') : '尚未记录',
+      trend:'',
+      trendCol:'',
+    },
+    {
+      icon:'moon-star', color:'var(--yellow)', bg:'rgba(255,200,61,.15)',
+      title:'睡眠记录',
+      main: lastSleep?.hours ? Number(lastSleep.hours).toFixed(1) : '--', unit:lastSleep?.hours?'h':'',
+      sub: lastSleep ? '昨夜睡眠' : '尚未记录',
+      trend:'',
+      trendCol:'',
+    },
+  ];
+
+  wrap.innerHTML = cards.map(c=>`
+    <div class="card p-3" style="cursor:pointer" onclick="goToDataDetail()">
+      <div class="flex items-center justify-between">
+        <div class="meal-icon" style="background:${c.bg}; color:${c.color}; width:34px; height:34px"><i class="lucide lucide-${c.icon}" style="font-size:15px"></i></div>
+        ${c.trend?`<span class="text-[10px] font-bold" style="color:${c.trendCol}">${c.trend}</span>`:''}
+      </div>
+      <p class="text-[10px] text-slate-400 mt-2">${c.title}</p>
+      <p class="text-lg font-black mt-0.5 number-tabular">${c.main}<span class="text-xs text-slate-400 font-normal">${c.unit}</span></p>
+      <p class="text-[10px] text-slate-500 mt-0.5 truncate">${c.sub}</p>
+    </div>
+  `).join('');
 }
 
 // ===== 选模板/自由训练后启动 session =====
